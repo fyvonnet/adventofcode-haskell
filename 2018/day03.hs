@@ -21,7 +21,7 @@ main :: IO ()
 main = do
     claims <- readFile "inputs/day03" >>= parseInput
     let countMap = foldl (M.unionWith (+)) M.empty (map (\c -> M.fromList [(crd, 1) | crd <- coords c]) claims)
-    print $ length $ filter ((>1) . snd) $ M.toList countMap
+    print $ length $ filter (>1) $ M.elems countMap
     print $ findNoOverlaps claims countMap
 
 
