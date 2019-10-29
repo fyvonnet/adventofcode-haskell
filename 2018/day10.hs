@@ -1,4 +1,4 @@
-import           Coord
+import           AOC.Coord
 import           Data.List
 import           Data.Void
 import           Text.Megaparsec
