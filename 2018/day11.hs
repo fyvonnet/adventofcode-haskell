@@ -1,14 +1,14 @@
 import           AOC.Coord
 import           Control.Monad.Reader
 import           Data.Array
+import           Data.Ix
 import           Data.List
 import           Data.Maybe
 import qualified Data.Map as M
 
 
-type PowerArray  = Array Coord Int
-type SearchState = (PowerArray, Maybe Square)
-data Square = Square Coord (Maybe Int) Int
+type SatMatrix = M.Map Coord Int
+data Square = Square Coord Int Int deriving Show
 
 instance Ord Square where
     compare (Square _ _ pa) (Square _ _ pb) = compare pa pb
@@ -16,70 +16,55 @@ instance Ord Square where
 instance Eq Square where
     (==) (Square _ _ pa) (Square _ _ pb) = (==) pa pb
 
-instance Show Square where
-    show (Square (Coord x y) Nothing   _) = show x ++ "," ++ show y 
-    show (Square (Coord x y) (Just s)  _) = show x ++ "," ++ show y ++ "," ++ show s
-        
 
 
 
 main :: IO ()
 main = do
-    let arrayCoords = squareCoords 1
-    let cellArray = array ((Coord 1 1), (Coord 300 300)) $ zip arrayCoords $ map cellPower arrayCoords
+    let satSquare = foldl insertSquare M.empty $ range ((Coord 1 1), (Coord 300 300))
 
-    let (Just result1) = foldl (searchMax3 cellArray) Nothing $ squareCoords 3
-    putStrLn $ show $ result1
+    let (Square (Coord x1 y1) _ _) = foldl1 (findAll satSquare) $ squareCoords 3
+    putStrLn $ show x1 ++ "," ++ show y1
 
-    let (_, Just result2) = runReader (foldM searchMax (cellArray, Nothing) [1..300]) cellArray
-    putStrLn $ show $ result2
-    
+    let (Square (Coord x2 y2) s _) = foldl1 (findAll satSquare) [sq | s <- [1..300], sq <- squareCoords s]
+    putStrLn $ show x2 ++ "," ++ show y2  ++ "," ++ show s
 
 
 
-searchMax3 :: PowerArray -> Maybe Square -> Coord -> Maybe Square
-searchMax3 ca sqmax coord = sqmax'
+insertSquare :: SatMatrix -> Coord -> SatMatrix
+insertSquare sat c = M.insert c power sat
     where
-        (Coord cx cy) = coord
-        square        = (Square coord Nothing pwr)
-        sqmax'        = if isNothing sqmax then Just square else max square <$> sqmax
-        coords        = [(Coord x y) | x <- [cx..cx+2], y <- [cy..cy+2]]
-        pwr           = sum $ map ((!) ca) coords
+        (Coord x y) = c
+        power = (cellPower c) + (lu (Coord (x-1) y) sat) + (lu (Coord x (y-1)) sat) - (lu (Coord (x-1) (y-1)) sat)
 
 
 
-searchMax :: SearchState -> Int -> Reader PowerArray SearchState
-searchMax (pa, sqmax) size = do
-    let sqcoords =  squareCoords size
-    squares      <- mapM (makeSquare pa size) sqcoords
-    let lmax     =  maximum squares
-    let sqmax'   =  if isNothing sqmax then Just lmax else max lmax <$> sqmax
-    let pa'      =  array (head sqcoords, last sqcoords) [(c, p) | (Square c _ p) <- squares]
-    return $ (pa', sqmax')
+findAll :: SatMatrix -> Square -> Square -> Square
+findAll sat sq (Square c s _) = max sq $ Square c s $ squarePower sat c s
 
 
 
-makeSquare :: PowerArray -> Int -> Coord -> Reader PowerArray Square
-makeSquare pa size coord = do 
-    ca <- ask
-    let (Coord cx cy) = coord
-    let l = size - 1
-    let brdCoords = if size == 1 then [] else (Coord (cx + l) (cy + l)) : [c | m <- [0..l-1], c <- [(Coord (cx + l) (cy + m)), (Coord (cx + m) (cy + l))]]
-    let power = (pa ! coord) + sum (map ((!) ca) brdCoords)
-    return (Square coord (Just size) power)
+squarePower :: SatMatrix -> Coord -> Int -> Int
+squarePower sat (Coord x y) s =
+        (lu (Coord (x-1) (y-1)) sat) - (lu (Coord (x+l) (y-1)) sat) - (lu (Coord (x-1) (y+l)) sat) + (lu (Coord (x+l) (y+l)) sat)
+    where l = s - 1
 
+
+lu = M.findWithDefault 0
+        
+    
 
 
 cellPower :: Coord -> Int
 cellPower (Coord x y) = do
     let rackID = x + 10
-    ((((rackID * y) + serialNum) * rackID) `quot` 100 `mod` 10) - 5
+    (((rackID * y + serialNum) * rackID) `quot` 100 `mod` 10) - 5
 
 
 
-squareCoords :: Int -> [Coord]
-squareCoords size = [(Coord x y) | y <- range, x <- range]
-    where range = [1..(300 - size + 1)]
+squareCoords :: Int -> [Square]
+squareCoords size = map (\c -> Square c size 0) $ range ((Coord 1 1), (Coord l l))
+    where l = (300 - size + 1)
 
 
 
