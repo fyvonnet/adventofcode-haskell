@@ -32,9 +32,15 @@ makeNode = do
     put rem
 
     children <- replicateM nc makeNode
-
-    lst <- get
-    let (metadata,rem) = splitAt nm lst
-    put rem
+    metadata <- replicateM nm getMetadata
 
     return (Node children metadata)
+
+
+
+getMetadata :: State [Int] Int
+getMetadata = do
+    lst <- get
+    let (x:xs) = lst
+    put xs
+    return x
