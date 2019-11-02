@@ -1,18 +1,20 @@
 {-# Language DeriveFoldable #-}
 
-import           Control.Monad.State
+import           Control.Monad (replicateM)
 import           Data.Maybe
+import           Data.Void
+import           Text.Megaparsec
 import qualified Data.Map as M
 
 data Node a = Node [Node a] [a] deriving Foldable
-
+type Parser = Parsec Void String
 
 
 main :: IO ()
 main = do
-    root <- evalState makeNode <$> map read <$> words <$> readFile "inputs/day08"
+    root <- readFile "inputs/day08" >>= parseNode
     print $ sum root
-    print $ nodeValue   root
+    print $ nodeValue root
 
 
 
@@ -25,22 +27,26 @@ nodeValue (Node children metadata) = sum $ map nodeValue refChildren
         
     
 
-makeNode :: State [Int] (Node Int)
-makeNode = do
-    lst <- get
-    let (nc:nm:rem) = lst
-    put rem
-
-    children <- replicateM nc makeNode
-    metadata <- replicateM nm getMetadata
-
-    return (Node children metadata)
+parseNode :: String -> IO (Node Int)
+parseNode raw = do
+    case parse node "" raw of
+        Left e  -> error $ errorBundlePretty e
+        Right x -> return x
 
 
 
-getMetadata :: State [Int] Int
-getMetadata = do
-    lst <- get
-    let (x:xs) = lst
-    put xs
-    return x
+node :: Parser (Node Int)
+node = do
+    nc <- number
+    nm <- number
+    c  <- replicateM nc node
+    m  <- replicateM nm number
+    return (Node c m)
+    
+
+
+number :: Parser Int
+number = do
+    n <- read <$> many (oneOf ['0'..'9'])
+    oneOf [' ', '\n']
+    return n
