@@ -1,26 +1,22 @@
+{-# Language DeriveFoldable #-}
+
 import           Control.Monad.State
 import           Data.Maybe
 import qualified Data.Map as M
 
-
-data Node = Node [Node] [Int]
+data Node a = Node [Node a] [a] deriving Foldable
 
 
 
 main :: IO ()
 main = do
     root <- evalState makeNode <$> map read <$> words <$> readFile "inputs/day08"
-    print $ sumMetadata root
+    print $ sum root
     print $ nodeValue   root
 
 
 
-sumMetadata :: Node -> Int
-sumMetadata (Node children metadata) = (sum metadata) + (sum $ map sumMetadata children)
-
-
-
-nodeValue :: Node -> Int
+nodeValue :: Node Int -> Int
 nodeValue (Node []       metadata) = sum metadata
 nodeValue (Node children metadata) = sum $ map nodeValue refChildren
     where
@@ -29,7 +25,7 @@ nodeValue (Node children metadata) = sum $ map nodeValue refChildren
         
     
 
-makeNode :: State [Int] Node
+makeNode :: State [Int] (Node Int)
 makeNode = do
     lst <- get
     let (nc:nm:rem) = lst
