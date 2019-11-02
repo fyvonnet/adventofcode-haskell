@@ -1,17 +1,15 @@
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import           Data.Maybe
 import           Control.Monad.State
+import           Data.Maybe
+import qualified Data.Map as M
 
 
-data Node = Node [Node] [Int] deriving Show
+data Node = Node [Node] [Int]
 
 
 
 main :: IO ()
 main = do
-    raw <- readFile "inputs/day08"
-    let root = evalState makeNode $ map read $ words raw
+    root <- evalState makeNode <$> map read <$> words <$> readFile "inputs/day08"
     print $ sumMetadata root
     print $ nodeValue   root
 
@@ -24,10 +22,10 @@ sumMetadata (Node children metadata) = (sum metadata) + (sum $ map sumMetadata c
 
 nodeValue :: Node -> Int
 nodeValue (Node []       metadata) = sum metadata
-nodeValue (Node children metadata) =
-    let childrenMap = Map.fromList $ zip [1..] children
-        refChildren = map fromJust $ filter isJust $ map (\k -> Map.lookup k childrenMap) metadata
-    in sum $ map nodeValue refChildren
+nodeValue (Node children metadata) = sum $ map nodeValue refChildren
+    where
+        childrenMap = M.fromList $ zip [1..] children
+        refChildren = map fromJust $ filter isJust $ map (\k -> M.lookup k childrenMap) metadata
         
     
 
@@ -36,17 +34,11 @@ makeNode = do
     lst <- get
     let (nc:nm:rem) = lst
     put rem
-    children <- reverse <$> foldM addChild [] [1..nc]
+
+    children <- replicateM nc makeNode
+
     lst <- get
-    let (metadata,rem2) = splitAt nm lst
-    put rem2
+    let (metadata,rem) = splitAt nm lst
+    put rem
+
     return (Node children metadata)
-
-
-
-addChild :: [Node] -> Int -> State [Int] [Node]
-addChild lst _ = do
-    node <- makeNode
-    return (node:lst)
-
-
