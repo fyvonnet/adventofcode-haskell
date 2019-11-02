@@ -1,8 +1,7 @@
 
-import qualified Data.Map as Map
+import           AOC.Coord
 import           Data.Maybe
-import           Coord
-
+import qualified Data.Map as Map
 
 
 data Direction = WEST | NORTH | EAST | SOUTH deriving Enum
@@ -12,33 +11,34 @@ type CartState  = (Turn, Direction)
 type TrackMap   = Map.Map Coord (CartState -> CartState)
 type CartMap    = Map.Map Coord CartState
 type ParseState = (TrackMap, CartMap, Coord)
+data RunState = RS { _cm :: CartMap, _fc :: Maybe Coord, _lc :: Maybe Coord }
 
 
 
 main :: IO ()
 main = do
-    (trackMap, cartMap, _) <- foldl makeMaps (Map.empty, Map.empty, (Coord 0 0)) <$> readFile "inputs/day13"
-    let (firstcoll, lastcart) = moveCart trackMap cartMap Nothing []
-    putStrLn $ showCoord firstcoll
-    putStrLn $ showCoord lastcart
+    (tm, cm, _) <- foldl makeMaps (Map.empty, Map.empty, (Coord 0 0)) <$> readFile "inputs/day13"
+    let result   = until (isJust . _lc) (\rs -> foldl (moveCart tm) rs (Map.keys $ _cm rs)) (RS cm Nothing Nothing)
+    let printAns = (putStrLn . showCoord . fromJust)
+    printAns $ _fc result
+    printAns $ _lc result
 
 
 
-moveCart :: TrackMap -> CartMap -> Maybe Coord -> [Coord] -> (Coord, Coord)
-moveCart tm cm fstcoll [] = moveCart tm cm     fstcoll  (Map.keys cm)   -- Queue exhausted. Generate new queue from the carts map.
-moveCart tm cm fstcoll (c:cs)
-    | Map.null cm'      = (fromJust fstcoll, c')                        -- One cart remaining. Returns its coordinate and first collision coordinates.
-    | Map.member c' cm'   = moveCart tm cm_del fstcoll' cs'             -- A collision had happend. Remove second cart from the carts map.
-    | otherwise           = moveCart tm cm_ins fstcoll  cs              -- Cart is just moving. Add cart back in the carts map with updated coordinates and state.
+moveCart :: TrackMap -> RunState -> Coord -> RunState
+moveCart tm (RS cm fc _) c
+    | isNothing state   = (RS cm  fc  Nothing)
+    | Map.null cm'      = (RS cm' fc  (Just c'))
+    | Map.member c' cm' = (RS cmd fc' Nothing)
+    | otherwise         = (RS cmi fc  Nothing)
     where
-        state    = cm Map.! c
-        cm'      = Map.delete c cm
-        cm_del   = Map.delete c' cm'
-        cm_ins   = Map.insert c' state' cm'
-        c'       = move c state
-        state'   = Map.findWithDefault id c' tm state
-        fstcoll' = if isNothing fstcoll then Just c' else fstcoll
-        cs'      = filter (/= c') cs
+        state  = Map.lookup c cm
+        cm'    = Map.delete c cm
+        c'     = move c $ fromJust state
+        state' = Map.findWithDefault id c' tm $ fromJust state
+        fc'    = if isNothing fc then Just c' else fc
+        cmd    = Map.delete c' cm'
+        cmi    = Map.insert c' state' cm'
 
 
 
