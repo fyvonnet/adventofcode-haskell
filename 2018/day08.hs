@@ -4,6 +4,7 @@ import           Control.Monad (replicateM)
 import           Data.Maybe
 import           Data.Void
 import           Text.Megaparsec
+import           Text.Megaparsec.Char
 import qualified Data.Map as M
 
 data Node a = Node [Node a] [a] deriving Foldable
@@ -23,7 +24,7 @@ nodeValue (Node []       metadata) = sum metadata
 nodeValue (Node children metadata) = sum $ map nodeValue refChildren
     where
         childrenMap = M.fromList $ zip [1..] children
-        refChildren = map fromJust $ filter isJust $ map (\k -> M.lookup k childrenMap) metadata
+        refChildren = catMaybes $ map (\k -> M.lookup k childrenMap) metadata
         
     
 
@@ -47,6 +48,6 @@ node = do
 
 number :: Parser Int
 number = do
-    n <- read <$> many (oneOf ['0'..'9'])
-    oneOf [' ', '\n']
+    n <- read <$> many digitChar
+    space
     return n
