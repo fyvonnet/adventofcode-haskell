@@ -1,6 +1,7 @@
 import           AOC.Coord
 import           Data.Array
 import           Data.List
+import           Text.Printf
 import qualified Data.Map as M
 
 
@@ -25,10 +26,10 @@ main = do
     let satArray  = zeroArray // M.toList satMap
 
     let (Square (Coord x1 y1) _ _) = foldl1 (findAll satArray) $ squareCoords 3
-    putStrLn $ show x1 ++ "," ++ show y1
+    printf "%d,%d\n" x1 y1
 
     let (Square (Coord x2 y2) s _) = foldl1 (findAll satArray) [sq | s <- [1..300], sq <- squareCoords s]
-    putStrLn $ show x2 ++ "," ++ show y2  ++ "," ++ show s
+    printf "%d,%d,%d\n" x2 y2 s
 
 
 
