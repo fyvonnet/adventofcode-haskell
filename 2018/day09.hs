@@ -14,17 +14,16 @@ type GameState = (Circle, Scores, Int)
 main :: IO ()
 main = do
     (nPlayers, lastMarble) <- readFile "inputs/day09" >>= parseInput
-    let iterations = iterate gameTurn ((Z.fromList [0]), (V.replicate nPlayers 0), 1)
+    let iterations = iterate (gameTurn nPlayers) ((Z.fromList [0]), (V.replicate nPlayers 0), 1)
     let maxScore = (\(_, scores, _) -> V.maximum scores)
     print $ maxScore $ iterations !! lastMarble
     print $ maxScore $ iterations !! (lastMarble * 100)
 
 
 
-gameTurn :: GameState -> GameState
-gameTurn (circle, scores, m) = do
+gameTurn :: Int -> GameState -> GameState
+gameTurn np (circle, scores, m) = do
     if m `mod` 23 == 0 then do
-        let np       = V.length scores
         let p        = mod (m - 1) np
         let circle'  = moveLeft 8 circle
         let points   = (scores V.! p) + m + (Z.cursor circle')
