@@ -14,7 +14,7 @@ type RuleSet  = S.Set [Bool]
 main :: IO ()
 main = do
     (initstate, ruleSet) <- readFile "inputs/day12" >>= parseInput
-    let generations = scanl (generation ruleSet) initstate [1..]
+    let generations = iterate (generation ruleSet) initstate
 
     print $ sum $ S.toList (generations !! 20)
 
@@ -23,8 +23,8 @@ main = do
 
 
 
-generation :: RuleSet -> PlantSet -> Int -> PlantSet
-generation rs ps _ = foldl (updatePot rs ps) S.empty [S.findMin ps - 2 .. S.findMax ps + 2]
+generation :: RuleSet -> PlantSet -> PlantSet
+generation rs ps = foldl (updatePot rs ps) S.empty [S.findMin ps - 2 .. S.findMax ps + 2]
 
 
 
