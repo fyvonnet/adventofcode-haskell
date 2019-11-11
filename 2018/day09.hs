@@ -1,11 +1,11 @@
-import qualified Data.Vector      as V
-import qualified Data.List.Zipper as Z
-import           Control.Monad ((>>=))
-import           Text.Megaparsec hiding (State)
+import           Data.List.PointedList.Circular
+import           Data.Maybe
+import           Text.Megaparsec
 import           Text.Megaparsec.Char
+import qualified Data.Vector      as V
 
 
-type Circle = Z.Zipper Int
+type Circle = PointedList Int
 type Scores = V.Vector Int
 type GameState = (Circle, Scores, Int)
 
@@ -14,41 +14,30 @@ type GameState = (Circle, Scores, Int)
 main :: IO ()
 main = do
     (nPlayers, lastMarble) <- readFile "inputs/day09" >>= parseInput
-    let iterations = iterate (gameTurn nPlayers) ((Z.fromList [0]), (V.replicate nPlayers 0), 1)
-    let maxScore = (\(_, scores, _) -> V.maximum scores)
-    print $ maxScore $ iterations !! lastMarble
-    print $ maxScore $ iterations !! (lastMarble * 100)
+    let iterations = iterate (gameTurn nPlayers) ((singleton 0), (V.replicate nPlayers 0), 1)
+    let printMaxScore = print . V.maximum . (\(_,s,_) -> s) . (!!) iterations
+    printMaxScore lastMarble
+    printMaxScore (lastMarble * 100)
 
 
 
 gameTurn :: Int -> GameState -> GameState
-gameTurn np (circle, scores, m) = do
-    if m `mod` 23 == 0 then do
-        let p        = mod (m - 1) np
-        let circle'  = moveLeft 8 circle
-        let points   = (scores V.! p) + m + (Z.cursor circle')
-        let scores'  = scores V.// [(p, points)]
-        let circle'' = moveRight $ Z.delete circle'
-        (circle'', scores', m + 1)
-    else do
-        let circle'  = moveRight $ Z.insert m $ Z.right circle
-        (circle', scores, m + 1)
+gameTurn np (circle, scores, m) = (circle', scores', (m + 1))
+    where
+        special = m `mod` 23 == 0
+        player  = mod (m - 1) np
+        (rm, spcirc) = specialTurn circle
+        points  = (scores V.! player) + m + rm
+        scores' = if special then scores V.// [(player, points)] else scores
+        circle' = if special then spcirc else insertRight m $ next circle
 
 
 
-moveRight :: Circle -> Circle
-moveRight circle
-    | Z.endp circle' = Z.start circle'
-    | otherwise      = circle'
-    where circle' = Z.right circle
-
-
-    
-moveLeft :: Int -> Circle -> Circle
-moveLeft 0 circle = circle
-moveLeft n circle 
-    | Z.beginp circle = moveLeft (n - 1) $ Z.left (Z.end circle)
-    | otherwise       = moveLeft (n - 1) (Z.left circle)
+specialTurn :: Circle -> (Int, Circle)
+specialTurn circle = (rm, fromJust $ deleteRight circle')
+    where
+        circle' = (iterate previous circle) !! 7
+        rm      = _focus circle'
 
 
 
