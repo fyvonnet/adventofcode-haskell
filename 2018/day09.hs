@@ -7,25 +7,22 @@ import           Text.Megaparsec.Char
 
 type Circle = Z.Zipper Int
 type Scores = V.Vector Int
-type GameState = (Circle, Scores)
+type GameState = (Circle, Scores, Int)
 
 
 
 main :: IO ()
 main = do
     (nPlayers, lastMarble) <- readFile "inputs/day09" >>= parseInput
-    print $ run nPlayers  lastMarble
-    print $ run nPlayers (lastMarble * 100)
+    let iterations = iterate gameTurn ((Z.fromList [0]), (V.replicate nPlayers 0), 1)
+    let maxScore = (\(_, scores, _) -> V.maximum scores)
+    print $ maxScore $ iterations !! lastMarble
+    print $ maxScore $ iterations !! (lastMarble * 100)
 
 
 
-run :: Int -> Int -> Int
-run n l = V.maximum $ snd $ foldl gameTurn ((Z.fromList [0]), (V.replicate n 0)) [1..l]
-
-
-
-gameTurn :: GameState -> Int -> GameState
-gameTurn (circle, scores) m = do
+gameTurn :: GameState -> GameState
+gameTurn (circle, scores, m) = do
     if m `mod` 23 == 0 then do
         let np       = V.length scores
         let p        = mod (m - 1) np
@@ -33,10 +30,10 @@ gameTurn (circle, scores) m = do
         let points   = (scores V.! p) + m + (Z.cursor circle')
         let scores'  = scores V.// [(p, points)]
         let circle'' = moveRight $ Z.delete circle'
-        (circle'', scores')
+        (circle'', scores', m + 1)
     else do
         let circle'  = moveRight $ Z.insert m $ Z.right circle
-        (circle', scores)
+        (circle', scores, m + 1)
 
 
 
