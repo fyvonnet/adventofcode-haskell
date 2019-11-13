@@ -1,21 +1,15 @@
 import           Data.List
+import           Data.String.Utils (rstrip)
 import qualified Data.Sequence as S
 
 
 
 main :: IO ()
 main = do
-    let input = 147061 :: Int
+    input <- rstrip <$> readFile "inputs/day14"
     let scores = 3:7:(recipes (S.fromList [3, 7]) 0 1)
-    putStrLn $ concatMap show $ take 10 $ drop input scores
-    print $ countRecipes (intToLst input) scores 0
-
-
-
-intToLst :: Int -> [Int]
-intToLst n = reverse $ go n where
-    go 0 = []
-    go x = (mod x 10) : go (div x 10)
+    putStrLn $ concatMap show $ take 10 $ drop (read input) scores
+    print $ countRecipes (map (\x -> read [x]) input) scores 0
 
 
 
