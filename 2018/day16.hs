@@ -2,7 +2,6 @@ import           Data.Bits
 import           Data.Void (Void)
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
-import qualified Data.Map    as M
 import qualified Data.Set    as S
 import qualified Data.Vector as V
 
@@ -19,7 +18,7 @@ data OpCode = ADDR | ADDI |
               SETR | SETI |
               GTIR | GTRI | GTRR |
               EQIR | EQRI | EQRR
-              deriving (Enum, Bounded, Ord, Eq)
+              deriving (Enum, Bounded, Ord, Eq, Show)
 
 
 
@@ -29,28 +28,30 @@ main = do
     let allOC = [minBound..] :: [OpCode]
     let code  = (\(c, _, _, _) -> c)
 
-    let ocs  = map (\(b, a, i) -> (code i, S.fromList $ filter (\oc -> run oc b i == a) allOC)) samples
+    let ocs  = map (\(b, a, i) -> (code i, S.fromList $ filter (\oc -> exec oc b i == a) allOC)) samples
     print $ length $ filter (\x -> (S.size $ snd x) >= 3) ocs
 
     let initVec = V.replicate 16 $ S.fromList allOC
-    let x       = foldl (\v (c, s) -> v V.// [(c, (S.intersection (v V.! c) s))]) initVec ocs
-    let ocVec   = V.fromList $ M.elems $ snd $ until (null . fst) eliminate (zip [0..] $ V.toList x, M.empty)
-    let regs    = foldl (\rs i -> run (ocVec V.! (code i)) rs i) (V.fromList [0,0,0,0]) instrs
+    let ocVec   = eliminate $ foldl (\v (c, s) -> v V.// [(c, (S.intersection (v V.! c) s))]) initVec ocs
+    let regs    = foldl (\rs i -> exec (ocVec V.! (code i)) rs i) (V.fromList [0, 0, 0, 0]) instrs
     print $ regs V.! 0
     
-   
-
-eliminate :: ([(Int, S.Set OpCode)], M.Map Int OpCode) -> ([(Int, S.Set OpCode)], M.Map Int OpCode)
-eliminate (lst, m) = (lst', m') where
-    lst1 = filter (\(_, s) -> S.size s == 1) lst
-    set1 = S.unions $ map snd lst1
-    m'   = foldl (\m (c, s) -> M.insert c (S.findMin s) m) m lst1
-    lst' = filter (not . S.null . snd) $ map (\(c, s) -> (c, S.difference s set1)) lst
 
 
+eliminate :: V.Vector (S.Set OpCode) -> V.Vector OpCode
+eliminate vec = fst $ until (V.and . V.map S.null . snd) go (initVec, vec) where
+    initVec = V.replicate 16 minBound
+    enumVec = V.enumFromN 0 16
+    go (ocv, v) = (ocv', v') where
+        vec1 = V.map (\(c, s) -> (c, S.findMin s)) $ V.filter (\t -> S.size (snd t) == 1) (V.zip enumVec v)
+        set1 = V.foldl (\s (_, oc) -> S.insert oc s) S.empty vec1
+        v'   = V.map (flip S.difference set1) v
+        ocv' = ocv V.// (V.toList vec1)
 
-run :: OpCode -> Registers -> Instruction -> Registers
-run oc r (_, valA, valB, out) = r V.// [(out, result)] where
+
+
+exec :: OpCode -> Registers -> Instruction -> Registers
+exec oc r (_, valA, valB, out) = r V.// [(out, result)] where
     regA = r V.! valA
     regB = r V.! valB
     result = case oc of
