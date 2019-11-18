@@ -47,7 +47,7 @@ eliminate :: V.Vector 16 (S.Set OpCode) -> V.Vector 16 OpCode
 eliminate vec = fst $ until (V.and . V.map S.null . snd) go (initVec, vec) where
     initVec = V.replicate minBound
     go (ocv, v) = (ocv', v') where
-        lst1 = map (\(c, s) -> (c, S.findMin s)) $ filter (\t -> S.size (snd t) == 1) (zip [0..15] $ V.toList v)
+        lst1 = map (\(c, s) -> (c, S.findMin s)) $ filter (\t -> S.size (snd t) == 1) (zip [0..] $ V.toList v)
         set1 = foldl (\s (_, oc) -> S.insert oc s) S.empty lst1
         v'   = V.map (flip S.difference set1) v
         ocv' = ocv V.// lst1
@@ -56,10 +56,12 @@ eliminate vec = fst $ until (V.and . V.map S.null . snd) go (initVec, vec) where
 
 exec :: OpCode -> Registers -> Instruction -> Registers
 exec oc r (_, in1, in2, out) = r V.// [(out, result)] where
-    regA = V.index r in1
-    regB = V.index r in2
-    valA = fromInteger $ getFinite in1
-    valB = fromInteger $ getFinite in2
+    getReg = V.index r
+    getVal = (fromInteger . getFinite)
+    regA = getReg in1
+    regB = getReg in2
+    valA = getVal in1
+    valB = getVal in2
     result = case oc of
         ADDR -> regA  +  regB
         ADDI -> regA  +  valB
