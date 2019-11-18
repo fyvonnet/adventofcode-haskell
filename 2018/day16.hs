@@ -1,15 +1,20 @@
+{-# Language DataKinds #-}
+
+
 import           Data.Bits
+import           Data.Finite
+import           Data.Maybe
 import           Data.Void (Void)
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
-import qualified Data.Set    as S
-import qualified Data.Vector as V
+import qualified Data.Set          as S
+import qualified Data.Vector.Sized as V
 
 
 type Parser      = Parsec Void String
-type Registers   = V.Vector Int
+type Registers   = V.Vector 4 Int
 type Sample      = (Registers, Registers, Instruction)
-type Instruction = (Int, Int, Int, Int)
+type Instruction = (Finite 16, Finite 4, Finite 4, Finite 4)
 
 data OpCode = ADDR | ADDI |
               MULR | MULI |
@@ -31,29 +36,30 @@ main = do
     let ocs  = map (\(b, a, i) -> (code i, S.fromList $ filter (\oc -> exec oc b i == a) allOC)) samples
     print $ length $ filter (\x -> (S.size $ snd x) >= 3) ocs
 
-    let initVec = V.replicate 16 $ S.fromList allOC
-    let ocVec   = eliminate $ foldl (\v (c, s) -> v V.// [(c, (S.intersection (v V.! c) s))]) initVec ocs
-    let regs    = foldl (\rs i -> exec (ocVec V.! (code i)) rs i) (V.fromList [0, 0, 0, 0]) instrs
-    print $ regs V.! 0
+    let initVec = (V.replicate $ S.fromList allOC) :: V.Vector 16 (S.Set OpCode)
+    let ocVec   = eliminate $ foldl (\v (c, s) -> v V.// [(c, (S.intersection (V.index v c) s))]) initVec ocs
+    let regs    = foldl (\rs i -> exec (V.index ocVec (code i)) rs i) (V.replicate 0) instrs
+    print $ V.index regs 0
     
 
 
-eliminate :: V.Vector (S.Set OpCode) -> V.Vector OpCode
+eliminate :: V.Vector 16 (S.Set OpCode) -> V.Vector 16 OpCode
 eliminate vec = fst $ until (V.and . V.map S.null . snd) go (initVec, vec) where
-    initVec = V.replicate 16 minBound
-    enumVec = V.enumFromN 0 16
+    initVec = V.replicate minBound
     go (ocv, v) = (ocv', v') where
-        vec1 = V.map (\(c, s) -> (c, S.findMin s)) $ V.filter (\t -> S.size (snd t) == 1) (V.zip enumVec v)
-        set1 = V.foldl (\s (_, oc) -> S.insert oc s) S.empty vec1
+        lst1 = map (\(c, s) -> (c, S.findMin s)) $ filter (\t -> S.size (snd t) == 1) (zip [0..15] $ V.toList v)
+        set1 = foldl (\s (_, oc) -> S.insert oc s) S.empty lst1
         v'   = V.map (flip S.difference set1) v
-        ocv' = ocv V.// (V.toList vec1)
+        ocv' = ocv V.// lst1
 
 
 
 exec :: OpCode -> Registers -> Instruction -> Registers
-exec oc r (_, valA, valB, out) = r V.// [(out, result)] where
-    regA = r V.! valA
-    regB = r V.! valB
+exec oc r (_, in1, in2, out) = r V.// [(out, result)] where
+    regA = V.index r in1
+    regB = V.index r in2
+    valA = fromInteger $ getFinite in1
+    valB = fromInteger $ getFinite in2
     result = case oc of
         ADDR -> regA  +  regB
         ADDI -> regA  +  valB
@@ -112,7 +118,7 @@ registers = do
     char '[' 
     regs <- (many digitChar) `sepBy` (string ", ")
     char ']' 
-    return $ V.fromList $ map read regs
+    return $ fromJust $ V.fromList $ map read regs
 
 
 
@@ -120,4 +126,5 @@ instruction :: Parser Instruction
 instruction = do
     ins <- (many digitChar) `sepBy` (char ' ')
     let [code, in1, in2, out] = map read ins
-    return (code, in1, in2, out)
+    return (finite code, finite in1, finite in2, finite out)
+
