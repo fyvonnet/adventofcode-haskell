@@ -3,14 +3,18 @@ import           Control.Monad.State
 import           Control.Monad.Loops
 import           Data.Ix
 import           Data.Void
+import           GHC.Exts
 import           Text.Megaparsec hiding (State)
 import           Text.Megaparsec.Char
-import qualified Data.Map as M
+import qualified Data.Map     as M
+import qualified Deque.Strict as D
+
 
 
 type Parser  = Parsec Void String
 type MyState = State (M.Map Coord Square)
 type Ground  = M.Map Coord Square
+type Queue   = D.Deque Coord
 data Square  = SAND | CLAY | FLOW | WATER deriving (Eq, Ord)
 data Flow    = Blocked Coord | Overflow Coord
 
@@ -19,8 +23,8 @@ data Flow    = Blocked Coord | Overflow Coord
 main :: IO ()
 main = do
     input <- concat <$> (readFile "inputs/day17" >>= parseInput)
-    let start = [(Coord 500 0)]
-    let sqMap = execState (iterateUntilM null run start) $ M.fromList $ zip input $ repeat CLAY
+    let start = fromList [(Coord 500 0)]
+    let sqMap = execState (iterateUntilM D.null run start) $ M.fromList $ zip input $ repeat CLAY
 
     let xs     = map _x $ M.keys sqMap
     let ys     = map _y input
@@ -38,14 +42,15 @@ counter (a, b) _     = (a,     b    )
 
 
 
-run :: [Coord] -> MyState [Coord]
-run (c:cs) = do
+run :: Queue -> MyState (Queue)
+run queue = do
+    let Just (c, cs) = D.uncons queue
     c' <- flowDown c
     case c' of
         Nothing -> return cs
         Just x  -> do
             newcs <- fillReservoir x
-            return (cs ++ newcs)
+            return $ foldl (flip D.snoc) cs newcs
 
 
 
