@@ -1,5 +1,6 @@
 import           AOC.Coord
 import           Control.Monad.State
+import           Control.Monad.Loops
 import           Data.Ix
 import           Data.Void
 import           Text.Megaparsec hiding (State)
@@ -19,7 +20,7 @@ main :: IO ()
 main = do
     input <- concat <$> (readFile "inputs/day17" >>= parseInput)
     let start = [(Coord 500 0)]
-    let sqMap = execState (run start) $ M.fromList $ zip input $ repeat CLAY
+    let sqMap = execState (iterateUntilM null run start) $ M.fromList $ zip input $ repeat CLAY
 
     let xs     = map _x $ M.keys sqMap
     let ys     = map _y input
@@ -37,15 +38,14 @@ counter (a, b) _     = (a,     b    )
 
 
 
-run :: [Coord] -> MyState ()
-run []     = return ()
+run :: [Coord] -> MyState [Coord]
 run (c:cs) = do
     c' <- flowDown c
     case c' of
-        Nothing -> run cs
+        Nothing -> return cs
         Just x  -> do
             newcs <- fillReservoir x
-            run (cs ++ newcs)
+            return (cs ++ newcs)
 
 
 
