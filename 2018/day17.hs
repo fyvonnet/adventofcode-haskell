@@ -12,8 +12,8 @@ import qualified Data.Sequence as S
 
 
 type Parser  = Parsec Void String
-type MyState = State (M.Map Coord Square)
 type Ground  = M.Map Coord Square
+type MyState = State Ground
 type Queue   = S.Seq Coord
 data Square  = SAND | CLAY | FLOW | WATER deriving (Eq, Ord)
 data Flow    = Blocked Coord | Overflow Coord
@@ -23,8 +23,9 @@ data Flow    = Blocked Coord | Overflow Coord
 main :: IO ()
 main = do
     input <- concat <$> (readFile "inputs/day17" >>= parseInput)
-    let start = S.singleton (Coord 500 0)
-    let sqMap = execState (iterateUntilM S.null run start) $ M.fromList $ zip input $ repeat CLAY
+    let start   = S.singleton (Coord 500 0)
+    let initMap = M.fromList $ zip input $ repeat CLAY
+    let sqMap   = execState (iterateUntilM S.null run start) initMap
 
     let xs     = map _x $ M.keys sqMap
     let ys     = map _y input
@@ -42,7 +43,7 @@ counter (a, b) _     = (a,     b    )
 
 
 
-run :: Queue -> MyState (Queue)
+run :: Queue -> MyState Queue
 run queue = do
     let (c S.:< cs) = S.viewl queue
     c' <- flowDown c
@@ -100,7 +101,7 @@ right (Coord c r) = (Coord (c + 1) r)
 
 
 
-getSquare :: M.Map Coord Square -> Coord -> Square
+getSquare :: Ground -> Coord -> Square
 getSquare m c = M.findWithDefault SAND c m
 
 
