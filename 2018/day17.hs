@@ -6,15 +6,15 @@ import           Data.Void
 import           GHC.Exts
 import           Text.Megaparsec hiding (State)
 import           Text.Megaparsec.Char
-import qualified Data.Map     as M
-import qualified Deque.Strict as D
+import qualified Data.Map      as M
+import qualified Data.Sequence as S
 
 
 
 type Parser  = Parsec Void String
 type MyState = State (M.Map Coord Square)
 type Ground  = M.Map Coord Square
-type Queue   = D.Deque Coord
+type Queue   = S.Seq Coord
 data Square  = SAND | CLAY | FLOW | WATER deriving (Eq, Ord)
 data Flow    = Blocked Coord | Overflow Coord
 
@@ -23,8 +23,8 @@ data Flow    = Blocked Coord | Overflow Coord
 main :: IO ()
 main = do
     input <- concat <$> (readFile "inputs/day17" >>= parseInput)
-    let start = fromList [(Coord 500 0)]
-    let sqMap = execState (iterateUntilM D.null run start) $ M.fromList $ zip input $ repeat CLAY
+    let start = S.singleton (Coord 500 0)
+    let sqMap = execState (iterateUntilM S.null run start) $ M.fromList $ zip input $ repeat CLAY
 
     let xs     = map _x $ M.keys sqMap
     let ys     = map _y input
@@ -44,13 +44,13 @@ counter (a, b) _     = (a,     b    )
 
 run :: Queue -> MyState (Queue)
 run queue = do
-    let Just (c, cs) = D.uncons queue
+    let (c S.:< cs) = S.viewl queue
     c' <- flowDown c
     case c' of
         Nothing -> return cs
         Just x  -> do
             newcs <- fillReservoir x
-            return $ foldl (flip D.snoc) cs newcs
+            return $ foldl (flip (S.<|)) cs newcs
 
 
 
