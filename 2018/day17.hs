@@ -1,36 +1,41 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 import           AOC.Coord
+import           Control.Lens (makeLenses, over, use, view, (%=))
 import           Control.Monad.State
 import           Control.Monad.Loops
 import           Data.Ix
 import           Data.Void
+import           Data.Sequence (ViewL((:<)), (<|))
 import           GHC.Exts
 import           Text.Megaparsec hiding (State)
 import           Text.Megaparsec.Char
 import qualified Data.Map      as M
 import qualified Data.Sequence as S
 
-
-
 type Parser  = Parsec Void String
 type Ground  = M.Map Coord Square
-type MyState = State Ground
 type Queue   = S.Seq Coord
 data Square  = SAND | CLAY | FLOW | WATER deriving (Eq, Ord)
 data Flow    = Blocked Coord | Overflow Coord
+data MyState = MyState { _ground :: Ground, _bottom :: Int }
+
+makeLenses ''MyState
+makeLenses ''Coord
 
 
 
 main :: IO ()
 main = do
     input <- concat <$> (readFile "inputs/day17" >>= parseInput)
-    let start   = S.singleton (Coord 500 0)
-    let initMap = M.fromList $ zip input $ repeat CLAY
-    let sqMap   = execState (iterateUntilM S.null run start) initMap
 
-    let xs     = map _x $ M.keys sqMap
-    let ys     = map _y input
-    let coords = [(Coord x y) | y <- [minimum ys..maximum ys], x <- [minimum xs..maximum xs]]
-    let res    = foldl counter (0, 0) $ map (getSquare sqMap) coords
+    let ys      = map _y input
+    let top     = minimum ys
+    let bottom  = maximum ys
+    let start   = S.singleton (Coord 500 top)
+    let initMap = M.fromList $ zip input $ repeat CLAY
+    let sqMap   = view ground $ execState (iterateUntilM S.null run start) (MyState initMap bottom)
+    let res     = foldl counter (0, 0) (M.elems sqMap)
 
     print $ fst res
     print $ snd res
@@ -43,61 +48,60 @@ counter (a, b) _     = (a,     b    )
 
 
 
-run :: Queue -> MyState Queue
+run :: Queue -> State MyState Queue
 run queue = do
-    let (c S.:< cs) = S.viewl queue
-    c' <- flowDown c
+    let (c :< cs) = S.viewl queue
+    c' <- downwardFlow c
     case c' of
         Nothing -> return cs
         Just x  -> do
             newcs <- fillReservoir x
-            return $ foldl (flip (S.<|)) cs newcs
+            return $ foldl (flip (<|)) cs newcs
 
 
 
-flowDown :: Coord -> MyState (Maybe Coord)
-flowDown c = do
-    modify (M.insert c FLOW)
+downwardFlow :: Coord -> State MyState (Maybe Coord)
+downwardFlow c = do
+    ground %= (M.insert c FLOW)
+    b <- use bottom
     let low = lower c
-    if _y low > 2000 then return Nothing else do
+    if _y low > b then return Nothing else do
         square <- getSquareS low 
         case square of
-            SAND      -> flowDown low
+            SAND      -> downwardFlow low
             FLOW      -> return Nothing
             otherwise -> return $ Just c
 
 
 
-flowSide :: (Coord -> Coord) -> Coord -> MyState Flow
-flowSide f coord = do
-    modify (M.insert coord FLOW)
-    let nxtcrd = f coord
+horizontalFlow :: Int -> Coord -> State MyState Flow
+horizontalFlow m coord = do
+    ground %= M.insert coord FLOW
+    let coord' = (over x (+ m)) coord
     lowsq <- getSquareS $ lower coord
-    nxtsq <- getSquareS nxtcrd
+    nxtsq <- getSquareS coord'
     if (lowsq /= CLAY) && (lowsq /= WATER) then return (Overflow coord)
     else if nxtsq == CLAY then return (Blocked coord)
-    else flowSide f nxtcrd
+    else horizontalFlow m coord'
 
 
 
-fillReservoir :: Coord -> MyState [Coord]
+fillReservoir :: Coord -> State MyState [Coord]
 fillReservoir c = do
-    res1 <- flowSide left  c
-    res2 <- flowSide right c
+    res1 <- horizontalFlow (-1) c -- flow to the left
+    res2 <- horizontalFlow   1  c -- flow to the right
     case (res1, res2) of
         (Overflow c1, Blocked  _ ) -> return [c1]
         (Blocked  _ , Overflow c2) -> return [c2]
         (Overflow c1, Overflow c2) -> return [c1, c2]
         (Blocked  c1, Blocked  c2) -> do
-            modify (M.union $ foldl (\m c -> M.insert c WATER m) M.empty $ range (c1, c2))
-            fillReservoir (upper c)
+            ground %= (M.union $ foldl (\m c -> M.insert c WATER m) M.empty $ range (c1, c2))
+            fillReservoir ((over y pred) c)
 
 
 
-upper (Coord c r) = (Coord c (r - 1))
-lower (Coord c r) = (Coord c (r + 1))
-left  (Coord c r) = (Coord (c - 1) r)
-right (Coord c r) = (Coord (c + 1) r)
+lower :: Coord -> Coord
+lower = over y succ
 
 
 
@@ -106,9 +110,9 @@ getSquare m c = M.findWithDefault SAND c m
 
 
 
-getSquareS :: Coord -> MyState Square
+getSquareS :: Coord -> State MyState Square
 getSquareS c = do
-    m <- get
+    m <- use ground
     return $ getSquare m c
 
 
