@@ -1,3 +1,4 @@
+import           AOC.Common (findRepeat)
 import           Data.List  (sort, group)
 import           Data.Map   (Map, (!))
 import           Data.Maybe (catMaybes)
@@ -14,19 +15,10 @@ main = do
     let input   = M.fromList [((x, y), getAcre c) | (y, cs) <- zip [0..] (lines raw), (x, c) <- zip [0..] cs]
     let changes = iterate change input
     let val m   = (a * b) where [a, b] = map length $ group $ sort $ filter (/= OPEN) $ M.elems (changes !! m)
-    let (a, b)  = findRepeat changes
+    let ((f, l), _) = findRepeat changes
     print $ val 10
-    print $ val $ (a + mod (1000000000 - b) (b - a))
+    print $ val $ (f + mod (1000000000 - l) (l - f))
 
-
-
-findRepeat :: Ord a => [a] -> (Int, Int)
-findRepeat lst = go (zip lst [0..]) M.empty where
-    go ((k, v) : xs) m =
-        case M.lookup k m of
-          Nothing -> go xs (M.insert k v m)
-          Just x  -> (x, v)
-    
 
 
 change :: Landscape -> Landscape
