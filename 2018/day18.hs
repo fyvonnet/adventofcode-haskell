@@ -1,18 +1,19 @@
-import           AOC.Common (findRepeat)
+import           AOC.Common (findRepeat, getTextMap)
+import           AOC.Coord 
 import           Data.List  (sort, group)
 import           Data.Map   (Map, (!))
 import           Data.Maybe (catMaybes)
 import qualified Data.Map as M 
 
 data Acre = OPEN | TREES | LUMBER deriving (Show, Eq, Ord)
-type Landscape = Map (Int, Int) Acre
+type Landscape = Map Coord Acre
 
 
 
 main :: IO ()
 main = do
     raw <- readFile "inputs/day18"
-    let input   = M.fromList [((x, y), getAcre c) | (y, cs) <- zip [0..] (lines raw), (x, c) <- zip [0..] cs]
+    let input   = M.map getAcre $ M.fromList $ getTextMap raw
     let changes = iterate change input
     let val m   = (a * b) where [a, b] = map length $ group $ sort $ filter (/= OPEN) $ M.elems (changes !! m)
     let ((f, l), _) = findRepeat changes
@@ -24,8 +25,8 @@ main = do
 change :: Landscape -> Landscape
 change l = M.fromList $ map go (M.keys l) where
     go c = (c, a') where
-        (x, y)  = c
-        sc      = [((x + x'), (y + y')) | x' <- [-1..1], y' <- [-1..1], (x', y') /= (0, 0)]
+        (Coord x y)  = c
+        sc      = [(Coord (x + x') (y + y')) | x' <- [-1..1], y' <- [-1..1], (x', y') /= (0, 0)]
         count a = length $ filter (== a) $ catMaybes $ map (flip M.lookup l) sc
         a       = l ! c
         a'      = case a of

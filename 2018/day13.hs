@@ -1,5 +1,6 @@
 
 import           AOC.Coord
+import           AOC.Common (getTextMap)
 import           Data.Maybe
 import qualified Data.Map as Map
 
@@ -10,14 +11,14 @@ data Turn      = LEFT | STRAIGHT | RIGHT deriving Enum
 type CartState  = (Turn, Direction)
 type TrackMap   = Map.Map Coord (CartState -> CartState)
 type CartMap    = Map.Map Coord CartState
-type ParseState = (TrackMap, CartMap, Coord)
+type ParseState = (TrackMap, CartMap)
 data RunState = RS { _cm :: CartMap, _fc :: Maybe Coord, _lc :: Maybe Coord }
 
 
 
 main :: IO ()
 main = do
-    (tm, cm, _) <- foldl makeMaps (Map.empty, Map.empty, (Coord 0 0)) <$> readFile "inputs/day13"
+    (tm, cm) <- foldl makeMaps (Map.empty, Map.empty) <$> getTextMap <$> readFile "inputs/day13"
     let result   = until (isJust . _lc) (\rs -> foldl (moveCart tm) rs (Map.keys $ _cm rs)) (RS cm Nothing Nothing)
     let printAns = (putStrLn . showCoord . fromJust)
     printAns $ _fc result
@@ -42,8 +43,8 @@ moveCart tm (RS cm fc _) c
 
 
 
-makeMaps :: ParseState -> Char -> ParseState
-makeMaps (tm, cm, coord) c
+makeMaps :: ParseState -> (Coord, Char) -> ParseState
+makeMaps (tm, cm) (coord, c)
     | c == '<'  = insertcm WEST
     | c == '^'  = insertcm NORTH
     | c == '>'  = insertcm EAST
@@ -51,12 +52,10 @@ makeMaps (tm, cm, coord) c
     | c == '+'  = inserttm intersec
     | c == '/'  = inserttm turn1
     | c == '\\' = inserttm turn2
-    | c == '\n' = (tm, cm, (Coord 0 (_y coord + 1)))
-    | otherwise = (tm, cm, nextChar)
+    | otherwise = (tm, cm)
     where
-        nextChar   = (Coord (_x coord + 1) (_y coord))
-        insertcm d = (tm, (Map.insert coord (LEFT, d) cm), nextChar)
-        inserttm f = ((Map.insert coord f tm), cm, nextChar)
+        insertcm d = (tm, (Map.insert coord (LEFT, d) cm))
+        inserttm f = ((Map.insert coord f tm), cm)
 
 
 
