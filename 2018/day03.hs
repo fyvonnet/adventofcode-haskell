@@ -1,13 +1,11 @@
+{-# LANGUAGE QuasiQuotes                #-}
 
-import           Data.List
-import           Data.Void
-import           Text.Megaparsec
-import           Text.Megaparsec.Char
+import           Text.RE.TDFA.String
+import           Text.RE.Replace
 import qualified Data.Map as M
 
 
 
-type Parser   = Parsec Void String
 type Coord    = (Int, Int)
 type CountMap = M.Map Coord Int
 data Claim    = Claim
@@ -19,7 +17,7 @@ data Claim    = Claim
 
 main :: IO ()
 main = do
-    claims <- readFile "inputs/day03" >>= parseInput
+    claims <- parseInput <$> readFile "inputs/day03"
     let countMap = foldl (M.unionWith (+)) M.empty (map (\c -> M.fromList [(crd, 1) | crd <- coords c]) claims)
     print $ length $ filter (>1) $ M.elems countMap
     print $ findNoOverlaps claims countMap
@@ -34,26 +32,18 @@ findNoOverlaps (c:cs) m
 
 
 
-parseInput :: String -> IO [Claim]
-parseInput raw = do
-    case parse (many inputLine) "" raw of
-        Left  e -> error $ errorBundlePretty e
-        Right x -> return x
+parseInput :: String -> [Claim]
+parseInput raw = map (parseLine r) input where
+    input = lines raw
+    r = either error id $ compileRegex "^#(@{%int}) @ (@{%int}),(@{%int}): (@{%int})x(@{%int})$"
 
 
 
-inputLine :: Parser Claim
-inputLine = do
-    char '#'
-    num    <- read <$> many numberChar
-    string " @ "
-    cx     <- read <$> many numberChar
-    char ','
-    cy     <- read <$> many numberChar
-    string ": "
-    width  <- read <$> many numberChar
-    char 'x'
-    height <- read <$> many numberChar
-    eol
-    return (Claim num [(x, y) | x <- [cx..(cx + width - 1)], y <- [cy..(cy + height - 1)]])
-
+parseLine :: RE -> String -> Claim
+parseLine re s = (Claim num [(x, y) | x <- [cx..(cx + w - 1)], y <- [cy..(cy + h - 1)]]) where
+    ms  = s ?=~ re
+    num = read $ ms !$$ [cp|1|]
+    cx  = read $ ms !$$ [cp|2|]
+    cy  = read $ ms !$$ [cp|3|]
+    w   = read $ ms !$$ [cp|4|]
+    h   = read $ ms !$$ [cp|5|]
