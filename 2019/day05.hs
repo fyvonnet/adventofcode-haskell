@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-import           Control.Lens (makeLenses, over, use, view, (%=), (+=))
+import           Control.Lens (makeLenses, over, use, view, (%=), (+=), (.=))
 import           Control.Monad.Loops (iterateWhile)
-import           Control.Monad.State (execState, State)
+import           Control.Monad.State (execState, State, when, unless)
 import           Data.List.Split (splitOn)
 import           Data.Vector (Vector, (!), (//))
 import           Text.Printf (printf)
@@ -12,7 +12,7 @@ import Debug.Trace
 
 
 data Param = Value Int | Addr Int deriving (Show)
-data Command = ADD | MULTIPLY | INPUT | OUTPUT | EXIT deriving (Show)
+data Command = ADD | MULTIPLY | INPUT | OUTPUT | JMPIFTRUE | JMPIFFALSE | LTHAN | EQUALS | EXIT deriving (Show)
 data Instr = Instr Command Param Param Param deriving (Show)
 data ICState = ICState { _intCode :: Vector Int, _pointer :: Int, _input :: Int, _output :: [Int] } deriving Show
 
@@ -23,8 +23,10 @@ makeLenses ''ICState
 main :: IO ()
 main = do
     input <- V.fromList <$> map (\x -> read x :: Int) <$> splitOn "," <$> readFile "inputs/day05"
-    let r = execState (iterateWhile (== True) (decode >>= exec)) (ICState input 0 1 [])
-    print $ last $ _output r
+    print $ V.length input
+    let r = execState (iterateWhile (== True) (decode >>= exec)) (ICState input 0 5 [])
+    --print $ last $ _output r
+    print $ _output r
 
 
 
@@ -46,6 +48,10 @@ decode = do
             "02" -> MULTIPLY
             "03" -> INPUT
             "04" -> OUTPUT
+            "05" -> JMPIFTRUE
+            "06" -> JMPIFFALSE
+            "07" -> LTHAN
+            "08" -> EQUALS
             "99" -> EXIT
             otherwise -> error ("Wrong opcode: " ++ oc) 
     let ps = map makeInstr $ zip [m1,m2,m3] $ map (\x -> ic ! (p + x)) [1..3]
@@ -55,7 +61,7 @@ decode = do
 
 exec :: Instr -> (State ICState) Bool
 
-exec i | trace (show i) False = undefined
+--exec i | trace (show i) False = undefined
 
 exec (Instr ADD a b (Addr addr)) = do
     va <- getVal a
@@ -81,6 +87,32 @@ exec (Instr OUTPUT a _ _) = do
     va <- getVal a
     pointer += 2
     output %= (\l -> l ++ [va])
+    return True
+
+exec (Instr JMPIFTRUE a b _) = do
+    va <- getVal a
+    vb <- getVal b
+    if (va /= 0) then pointer .= vb else pointer += 3
+    return True
+    
+exec (Instr JMPIFFALSE a b _) = do
+    va <- getVal a
+    vb <- getVal b
+    if (va == 0) then pointer .= vb else pointer += 3
+    return True
+
+exec (Instr LTHAN a b (Addr addr)) = do
+    va <- getVal a
+    vb <- getVal b
+    intCode %= changeIC addr (if va < vb then 1 else 0)
+    pointer += 4
+    return True
+
+exec (Instr EQUALS a b (Addr addr)) = do
+    va <- getVal a
+    vb <- getVal b
+    intCode %= changeIC addr (if va == vb then 1 else 0)
+    pointer += 4
     return True
 
 exec (Instr EXIT _ _ _) = do
