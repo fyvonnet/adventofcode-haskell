@@ -6,35 +6,38 @@ import           Data.Tuple (swap)
 import qualified Data.Map as M
 import qualified Data.Set as S
 
+type Queue = [(String, Int)]
+type Graph = Map String [String]
 
 
-main :: IO()
+
+main :: IO ()
 main = do
     input <- map ((\(a:b:[]) -> (a, b)) . splitOn ")") <$> lines <$> readFile "inputs/day06"
-    let makeMap = foldl' (\m (k, v) -> M.insertWith (++) k [v] m) M.empty
-    let orbMap  = makeMap input
+    let makeGraph = foldl' (\m (k, v) -> M.insertWith (++) k [v] m)
+    let orbMap  = makeGraph M.empty input
     print $ countOrbits [("COM", 0)] orbMap 0
     
-    let orbMap2 = M.unionWith (++) orbMap (makeMap $ map swap input)
+    let orbMap2 = makeGraph orbMap (map swap input)
     let dest = head (orbMap2 ! "YOU")
     let orig = head (orbMap2 ! "SAN")
-    print $ findPath orbMap2 [(orig, 0)] dest S.empty
+    print $ findPath [(orig, 0)] orbMap2 dest S.empty
 
 
-findPath :: Map String [String] -> [(String, Int)] -> String -> Set String -> Int
-findPath m ((n,d):xs) dest v 
+
+findPath :: Queue -> Graph -> String -> Set String -> Int
+findPath ((n,d):xs) m dest v 
     | n == dest = d
-    | otherwise = findPath m queue dest v' where
+    | otherwise = findPath queue m dest v' where
         neighbs = [x | x <- m ! n, not $ S.member x v]
         queue = xs ++ (zip neighbs (repeat (d + 1)))
         v' = foldl' (\s e -> S.insert e s) v neighbs
 
 
-countOrbits :: [(String, Int)] -> Map String [String] -> Int -> Int
+
+countOrbits :: Queue -> Graph -> Int -> Int
 countOrbits []         _ acc = acc
-countOrbits ((n,c):xs) m acc = countOrbits queue m (acc + c) where
+countOrbits ((n,d):xs) m acc = countOrbits queue m (acc + d) where
     queue = case M.lookup n m of
         Nothing -> xs
-        Just os -> xs ++ (zip os (repeat (c + 1)))
-
-    
+        Just os -> xs ++ (zip os (repeat (d + 1)))
