@@ -52,9 +52,6 @@ appendInput i = over input (++ i)
 getOutput :: ICState -> [Int]
 getOutput = reverse . view output
 
-getCode :: ICState -> [Int]
-getCode = M.elems . view intCode
-
 isRunning :: ICState -> Bool
 isRunning = view running
 
@@ -63,6 +60,9 @@ resetOutput = set output []
 
 changeCode :: [(Int, Int)] -> ICState -> ICState
 changeCode changes = over intCode (\m -> foldl' (\m (k, v) -> M.insert k v m) m changes)
+
+readMemory :: Int -> ICState -> Int
+readMemory i = flip (!) i . view intCode
 
 
 decode :: (State ICState) Instr
