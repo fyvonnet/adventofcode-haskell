@@ -7,10 +7,13 @@ module IntCode where
 import           Control.Lens (makeLenses, over, use, view, set, (%=), (+=), (.=))
 import           Control.Monad.Loops (iterateWhile)
 import           Control.Monad.State (execState, State, when, unless)
+import           Data.List (foldl')
 import           Data.List.Split (splitOn)
-import           Data.Vector (Vector, (!), (//))
+-- import           Data.Vector (Vector, (!), (//))
+import           Data.Map (Map, (!))
 import           Text.Printf (printf)
-import qualified Data.Vector as V
+-- import qualified Data.Vector as V
+import qualified Data.Map    as M
 
 import Debug.Trace
 
@@ -19,14 +22,13 @@ data Param = Value Int | Addr Int deriving (Show)
 data Command = ADD | MULTIPLY | INPUT | OUTPUT | JMPIFTRUE | JMPIFFALSE | LTHAN | EQUALS | CHRELBASE | EXIT deriving (Show)
 data Instr = Instr Command Param Param Param deriving (Show)
 data ICState = ICState
-    { _intCode :: Vector Int
+    { _intCode :: Map Int Int
     , _pointer :: Int
     , _relbase :: Int
     , _input   :: [Int]
     , _output  :: [Int]
     , _running :: Bool
     } deriving Show
-data Return = Halted (Vector Int) [Int] | Suspended ICState deriving (Show)
 
 makeLenses ''ICState
 
@@ -34,8 +36,8 @@ makeLenses ''ICState
 
 loadCode :: FilePath -> IO ICState
 loadCode fp = do
-    intcode <- V.fromList <$> map read <$> splitOn "," <$> readFile fp
-    return (ICState intcode 0 0 [] [] True)
+    intcode <- map read <$> splitOn "," <$> readFile fp
+    return (ICState (M.fromList $ zip [0..] intcode) 0 0 [] [] True)
 
 
 runIntCode :: ICState -> ICState
@@ -51,7 +53,7 @@ getOutput :: ICState -> [Int]
 getOutput = reverse . view output
 
 getCode :: ICState -> [Int]
-getCode = V.toList . view intCode
+getCode = M.elems . view intCode
 
 isRunning :: ICState -> Bool
 isRunning = view running
@@ -60,7 +62,7 @@ resetOutput :: ICState -> ICState
 resetOutput = set output []
 
 changeCode :: [(Int, Int)] -> ICState -> ICState
-changeCode changes = over intCode (\i -> i // changes)
+changeCode changes = over intCode (\m -> foldl' (\m (k, v) -> M.insert k v m) m changes)
 
 
 decode :: (State ICState) Instr
@@ -72,7 +74,7 @@ decode = do
 
     let makeInstr m v = do
         case m of
-            '0' -> Addr v
+            '0' -> Addr  v
             '1' -> Value v
             '2' -> Addr (v + rb)
             otherwise -> error ("Wrong mode: " ++ [m])
@@ -97,7 +99,7 @@ decode = do
 
 exec :: Instr -> (State ICState) Bool
 
-exec i | trace (show i) False = undefined
+-- exec i | trace (show i) False = undefined
 
 exec (Instr ADD a b (Addr addr)) = do
     va <- getVal a
@@ -155,8 +157,9 @@ exec (Instr EQUALS a b (Addr addr)) = do
     pointer += 4
     return True
 
-exec (Instr CHRELBASE (Value a) _ _) = do
-    relbase .= a
+exec (Instr CHRELBASE a _ _) = do
+    va <- getVal a
+    relbase += va
     pointer += 2
     return True
 
@@ -170,7 +173,7 @@ exec i = error ("Wrong instruction: " ++ show i)
 
 changeIC :: Int -> Int -> (State ICState) ()
 changeIC addr val =
-    intCode %= (\v -> v // [(addr, val)])
+    intCode %= (\m -> M.insert addr val m)
 
 
 
