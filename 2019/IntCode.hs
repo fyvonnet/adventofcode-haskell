@@ -16,9 +16,16 @@ import Debug.Trace
 
 
 data Param = Value Int | Addr Int deriving (Show)
-data Command = ADD | MULTIPLY | INPUT | OUTPUT | JMPIFTRUE | JMPIFFALSE | LTHAN | EQUALS | EXIT deriving (Show)
+data Command = ADD | MULTIPLY | INPUT | OUTPUT | JMPIFTRUE | JMPIFFALSE | LTHAN | EQUALS | CHRELBASE | EXIT deriving (Show)
 data Instr = Instr Command Param Param Param deriving (Show)
-data ICState = ICState { _intCode :: Vector Int, _pointer :: Int, _input :: [Int], _output :: [Int], _running :: Bool } deriving Show
+data ICState = ICState
+    { _intCode :: Vector Int
+    , _pointer :: Int
+    , _relbase :: Int
+    , _input   :: [Int]
+    , _output  :: [Int]
+    , _running :: Bool
+    } deriving Show
 data Return = Halted (Vector Int) [Int] | Suspended ICState deriving (Show)
 
 makeLenses ''ICState
@@ -28,7 +35,7 @@ makeLenses ''ICState
 loadCode :: FilePath -> IO ICState
 loadCode fp = do
     intcode <- V.fromList <$> map read <$> splitOn "," <$> readFile fp
-    return (ICState intcode 0 [] [] True)
+    return (ICState intcode 0 0 [] [] True)
 
 
 runIntCode :: ICState -> ICState
@@ -60,13 +67,14 @@ decode :: (State ICState) Instr
 decode = do
     p  <- use pointer
     ic <- use intCode
+    rb <- use relbase
     let (m3:m2:m1:oc) = (printf "%05d" (ic ! p)) :: String
 
-    --let makeInstr (m, v) = do
     let makeInstr m v = do
         case m of
             '0' -> Addr v
             '1' -> Value v
+            '2' -> Addr (v + rb)
             otherwise -> error ("Wrong mode: " ++ [m])
 
     let command str = do
@@ -79,6 +87,7 @@ decode = do
             "06" -> JMPIFFALSE
             "07" -> LTHAN
             "08" -> EQUALS
+            "09" -> CHRELBASE
             "99" -> EXIT
             otherwise -> error ("Wrong opcode: " ++ oc) 
     let ps = zipWith makeInstr [m1,m2,m3] $ map (\x -> ic ! (p + x)) [1..3]
@@ -88,7 +97,7 @@ decode = do
 
 exec :: Instr -> (State ICState) Bool
 
---exec i | trace (show i) False = undefined
+exec i | trace (show i) False = undefined
 
 exec (Instr ADD a b (Addr addr)) = do
     va <- getVal a
@@ -144,6 +153,11 @@ exec (Instr EQUALS a b (Addr addr)) = do
     vb <- getVal b
     changeIC addr (if va == vb then 1 else 0)
     pointer += 4
+    return True
+
+exec (Instr CHRELBASE (Value a) _ _) = do
+    relbase .= a
+    pointer += 2
     return True
 
 exec (Instr EXIT _ _ _) = do
