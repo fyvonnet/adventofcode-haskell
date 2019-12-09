@@ -1,11 +1,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module IntCode (runIntCode) where
+--module IntCode (runIntCode, Return) where
+module IntCode where
 
 
-import           Control.Lens (makeLenses, over, use, view, (%=), (+=), (.=))
+import           Control.Lens (makeLenses, over, use, view, set, (%=), (+=), (.=))
 import           Control.Monad.Loops (iterateWhile)
 import           Control.Monad.State (execState, State, when, unless)
+import           Data.List.Split (splitOn)
 import           Data.Vector (Vector, (!), (//))
 import           Text.Printf (printf)
 import qualified Data.Vector as V
@@ -16,16 +18,42 @@ import Debug.Trace
 data Param = Value Int | Addr Int deriving (Show)
 data Command = ADD | MULTIPLY | INPUT | OUTPUT | JMPIFTRUE | JMPIFFALSE | LTHAN | EQUALS | EXIT deriving (Show)
 data Instr = Instr Command Param Param Param deriving (Show)
-data ICState = ICState { _intCode :: Vector Int, _pointer :: Int, _input :: Int, _output :: [Int] } deriving Show
+data ICState = ICState { _intCode :: Vector Int, _pointer :: Int, _input :: [Int], _output :: [Int], _running :: Bool } deriving Show
+data Return = Halted (Vector Int) [Int] | Suspended ICState deriving (Show)
 
 makeLenses ''ICState
 
 
 
-runIntCode :: (Vector Int, Int) -> (Vector Int, [Int])
-runIntCode (ic, input) = (_intCode r, reverse $ _output r) where
-    r = execState (iterateWhile (== True) (decode >>= exec)) (ICState ic 0 input [])
+loadCode :: FilePath -> IO ICState
+loadCode fp = do
+    intcode <- V.fromList <$> map read <$> splitOn "," <$> readFile fp
+    return (ICState intcode 0 [] [] True)
 
+
+runIntCode :: ICState -> ICState
+runIntCode ics = execState (iterateWhile (== True) (decode >>= exec)) ics
+
+setInput :: [Int] -> ICState -> ICState
+setInput = set input
+
+appendInput :: [Int] -> ICState -> ICState
+appendInput i = over input (++ i)
+
+getOutput :: ICState -> [Int]
+getOutput = reverse . view output
+
+getCode :: ICState -> [Int]
+getCode = V.toList . view intCode
+
+isRunning :: ICState -> Bool
+isRunning = view running
+
+resetOutput :: ICState -> ICState
+resetOutput = set output []
+
+changeCode :: [(Int, Int)] -> ICState -> ICState
+changeCode changes = over intCode (\i -> i // changes)
 
 
 decode :: (State ICState) Instr
@@ -34,7 +62,8 @@ decode = do
     ic <- use intCode
     let (m3:m2:m1:oc) = (printf "%05d" (ic ! p)) :: String
 
-    let makeInstr (m, v) = do
+    --let makeInstr (m, v) = do
+    let makeInstr m v = do
         case m of
             '0' -> Addr v
             '1' -> Value v
@@ -52,7 +81,7 @@ decode = do
             "08" -> EQUALS
             "99" -> EXIT
             otherwise -> error ("Wrong opcode: " ++ oc) 
-    let ps = map makeInstr $ zip [m1,m2,m3] $ map (\x -> ic ! (p + x)) [1..3]
+    let ps = zipWith makeInstr [m1,m2,m3] $ map (\x -> ic ! (p + x)) [1..3]
     return (Instr (command oc) (ps !! 0) (ps !! 1) (ps !! 2))
 
 
@@ -76,10 +105,14 @@ exec (Instr MULTIPLY a b (Addr addr)) = do
     return True
 
 exec (Instr INPUT (Addr addr) _ _) = do
-    pointer += 2
-    vi <- use input
-    changeIC addr vi
-    return True
+    i <- use input
+    case i of
+        []     -> return False
+        (vi:_) -> do
+            pointer += 2
+            changeIC addr vi
+            input %= tail
+            return True
 
 exec (Instr OUTPUT a _ _) = do
     va <- getVal a
@@ -113,7 +146,9 @@ exec (Instr EQUALS a b (Addr addr)) = do
     pointer += 4
     return True
 
-exec (Instr EXIT _ _ _) = return False
+exec (Instr EXIT _ _ _) = do
+    running .= False
+    return False
 
 exec i = error ("Wrong instruction: " ++ show i)
 
