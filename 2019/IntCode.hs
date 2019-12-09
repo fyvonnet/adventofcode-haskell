@@ -10,10 +10,10 @@ import           Control.Monad.State (execState, State, when, unless)
 import           Data.List (foldl')
 import           Data.List.Split (splitOn)
 -- import           Data.Vector (Vector, (!), (//))
-import           Data.Map (Map, (!))
+import           Data.IntMap (IntMap, (!))
 import           Text.Printf (printf)
 -- import qualified Data.Vector as V
-import qualified Data.Map    as M
+import qualified Data.IntMap    as M
 
 import Debug.Trace
 
@@ -22,7 +22,7 @@ data Param = Value Int | Addr Int deriving (Show)
 data Command = ADD | MULTIPLY | INPUT | OUTPUT | JMPIFTRUE | JMPIFFALSE | LTHAN | EQUALS | CHRELBASE | EXIT deriving (Show)
 data Instr = Instr Command Param Param Param deriving (Show)
 data ICState = ICState
-    { _intCode :: Map Int Int
+    { _intCode :: IntMap Int
     , _pointer :: Int
     , _relbase :: Int
     , _input   :: [Int]
