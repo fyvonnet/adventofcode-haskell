@@ -58,8 +58,8 @@ isRunning = view running
 resetOutput :: ICState -> ICState
 resetOutput = set output []
 
-changeCode :: [(Int, Int)] -> ICState -> ICState
-changeCode changes = over intCode (\m -> foldl' (\m (k, v) -> M.insert k v m) m changes)
+writeMemory :: Int -> Int -> ICState -> ICState
+writeMemory addr value = over intCode (M.insert addr value)
 
 readMemory :: Int -> ICState -> Int
 readMemory i = flip (!) i . view intCode
