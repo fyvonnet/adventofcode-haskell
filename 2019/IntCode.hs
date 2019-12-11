@@ -40,23 +40,12 @@ loadCode fp = do
     return (ICState (M.fromList $ zip [0..] intcode) 0 0 [] [] True)
 
 
-runIntCode :: ICState -> ICState
-runIntCode ics = execState (iterateWhile (== True) (decode >>= exec)) ics
-
-setInput :: [Int] -> ICState -> ICState
-setInput = set input
-
-appendInput :: [Int] -> ICState -> ICState
-appendInput i = over input (++ i)
-
-getOutput :: ICState -> [Int]
-getOutput = reverse . view output
+runIntCode :: [Int] -> ICState -> ([Int], ICState)
+runIntCode i ics = (reverse $ view output endState, set output [] endState) where
+    endState = execState (iterateWhile (== True) (decode >>= exec)) $ set input i ics
 
 isRunning :: ICState -> Bool
 isRunning = view running
-
-resetOutput :: ICState -> ICState
-resetOutput = set output []
 
 writeMemory :: Int -> Int -> ICState -> ICState
 writeMemory addr value = over intCode (M.insert addr value)
