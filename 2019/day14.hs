@@ -19,8 +19,7 @@ data MyState = MyState
 
 main :: IO ()
 main = do
-    input <- readFile "inputs/day14" >>= parseInput
-    let graph = foldl' makeGraph M.empty input
+    graph <- readFile "inputs/day14" >>= parseInput
     print $ oreCount graph 1
     print $ binSearch graph 0 2000000 
 
@@ -28,7 +27,7 @@ main = do
 binSearch :: Graph -> Int -> Int -> Int
 binSearch graph a b
     | a + 1 == b = a
-    | otherwise = if (oreCount graph mid) > 1000000000000 then binSearch graph a mid else binSearch graph mid b
+    | otherwise = if (oreCount graph mid) >= 1000000000000 then binSearch graph a mid else binSearch graph mid b
     where mid = a + ((b - a) `div` 2)
 
 
@@ -43,31 +42,30 @@ run (MyState graph queue nbOre stock)
     | otherwise     = (MyState graph       queue'  nbOre           stock')  where
         (name, needed) = head queue
         instock = M.findWithDefault 0 name stock
-        (stock', toMake) = if instock > needed then (M.insert name (instock - needed + extra) stock, 0) else (M.insert name extra stock, needed - instock)
+        (stock', toMake) =
+            if   instock > needed
+            then (M.insert name (instock - needed + extra) stock, 0)
+            else (M.insert name extra stock, needed - instock)
         (qtprod, prereq) = graph ! name
         nbatch = ceiling ((fromIntegral toMake) / (fromIntegral qtprod))
         extra  = nbatch * qtprod - toMake
         queue' = (tail queue) ++ map (\(n, q) -> (n, nbatch * q)) prereq
 
 
-makeGraph :: Graph -> ([(String, Int)], (String, Int)) -> Graph
-makeGraph m (deps, (name, val)) = M.insert name (val, deps) m
-
-
-parseInput :: String -> IO [([(String, Int)], (String, Int))]
+parseInput :: String -> IO (Map String (Int, [(String, Int)]))
 parseInput raw = do
     case parse (many inputLine) "" raw of
         Left e  -> error $ errorBundlePretty e
-        Right x -> return x
+        Right x -> return $ M.fromList x
 
 
-inputLine :: Parser ([(String, Int)], (String, Int))
+inputLine :: Parser (String, (Int, [(String, Int)]))
 inputLine = do
     reqs <- concat <$> (some chemical) `sepBy` (string ", ")
     string " => "
-    rep <- chemical
+    (name, n) <- chemical
     newline
-    return (reqs, rep)
+    return (name, (n, reqs))
 
 
 chemical :: Parser (String, Int)
