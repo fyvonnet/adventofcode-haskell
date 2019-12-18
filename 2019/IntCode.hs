@@ -171,4 +171,4 @@ getVal p = do
     ic <- use intCode
     case p of
         Value v -> return v
-        Addr  a -> return $ (ic ! a)
+        Addr  a -> return $ M.findWithDefault 0 a ic
