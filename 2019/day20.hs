@@ -49,7 +49,7 @@ parsePortalsLst maxx maxy sd [(_, en1@(Coord x y), ex1), (_, en2, ex2)] = over _
 
 
 makeTriplet :: Maze -> Coord -> AbsDirection -> [(Coord, Object)]
-makeTriplet maze coord dir = [(c, getObj maze c) | c <- [nextCoord coord dir, coord, nextCoord coord $ oppositeDir dir]]
+makeTriplet maze coord dir = [(c, getObj maze c) | c <- [nextCoord coord dir, coord, nextCoord coord $ turn BACK dir]]
 
 
 makeMazeMap (m, ls) (coord, c)
