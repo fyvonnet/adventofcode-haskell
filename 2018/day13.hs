@@ -3,7 +3,7 @@
 
 import           AOC.Coord
 import           AOC.Common (getTextMap)
-import           Control.Lens ((&), makeLenses, set, view, over)
+import           Control.Lens ((&), _1, _2, makeLenses, set, view, over)
 import           Data.Maybe
 import qualified Data.Map as Map
 
@@ -48,18 +48,18 @@ moveCart tm rs c
 
 
 makeMaps :: ParseState -> (Coord, Char) -> ParseState
-makeMaps (tm, cm) (coord, c)
+makeMaps ps (coord, c)
+    | c == '+'  = inserttm intersec
+    | c == '/'  = inserttm turn1
+    | c == '\\' = inserttm turn2
     | c == '<'  = insertcm WEST
     | c == '^'  = insertcm NORTH
     | c == '>'  = insertcm EAST
     | c == 'v'  = insertcm SOUTH
-    | c == '+'  = inserttm intersec
-    | c == '/'  = inserttm turn1
-    | c == '\\' = inserttm turn2
-    | otherwise = (tm, cm)
+    | otherwise = ps
     where
-        insertcm d = (tm, (Map.insert coord (LEFT, d) cm))
-        inserttm f = ((Map.insert coord f tm), cm)
+        inserttm f = over _1 (Map.insert coord f        ) ps
+        insertcm d = over _2 (Map.insert coord (LEFT, d)) ps
 
 
 
