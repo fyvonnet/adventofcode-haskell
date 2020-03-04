@@ -22,3 +22,6 @@ findRepeat lst = go (zip lst [0..]) M.empty where
            Nothing -> go xs (M.insert k v m)
            Just x  -> ((x, v), k)
 
+
+singleton :: a -> [a]
+singleton x = [x]
