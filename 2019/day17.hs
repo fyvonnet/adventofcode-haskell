@@ -1,6 +1,12 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 import           AOC.Common
 import           AOC.Coord
-import           Control.Lens (_1, _2, over, set)
+import           Control.Lens (_1, _2, makeLenses, over, set, use)
+import           Control.Lens.Operators ((.=), (%=), (+=), (<>=))
+import           Control.Monad (when)
+import           Control.Monad.Loops (iterateUntil)
+import           Control.Monad.State (execState, State)
 import           Data.Char (chr, ord) 
 import           Data.Foldable (foldl')
 import           Data.Set (Set)
@@ -20,45 +26,70 @@ instance Show Movement where
     show (FORWARD n ) = show n
 
 
+data RobotState = RS
+    { _direc :: AbsDirection
+    , _coord :: Coord
+    , _mvmts :: [Movement]
+    , _steps :: Int
+    , _scaff :: Scaffold
+    , _sumap :: Int
+    }
+   
+makeLenses ''RobotState
+
+
 main :: IO ()
 main = do
     ics <- loadCode "inputs/day17"
 
-    let (output, _)       = runIntCode [] ics
-    let (scaffold, robot) = foldl makeData (S.empty, undefined) $ getTextMap $ map chr output
-    print $ sum $ map (\(Coord x y) -> x * y) $ filter (intersection scaffold) $ S.toList scaffold
+    let (output, _)        = runIntCode [] ics
+    let (scaffold, (c, d)) = foldl (flip makeData) (S.empty, undefined) $ getTextMap $ map chr output
+    let (RS _ _ ms _ _ s)  = execState (iterateUntil (== True) moveRobot) (RS d c mempty 0 scaffold 0)
 
-    -- Generate list of movements. Final program will be created manually.
-    print $ turnRobot [] scaffold robot
+    print s
+    print ms
 
     prog <- map ord <$> readFile "day17-prog"
     let (output2, _) = runIntCode prog $ writeMemory 0 2 ics
     print $ last output2
 
 
-turnRobot :: [Movement] -> Scaffold -> Robot -> [Movement]
-turnRobot ms s (c, f) = 
-    case filter (\rd -> S.member (relNeighbour f rd c) s) [LEFT, RIGHT] of
-        [d] -> forwardRobot ((TURN d):ms) s 0 (c, turn d f)
-        [ ] -> reverse ms
-        x   -> error $ show x
+moveRobot :: State RobotState Bool
+moveRobot = do
+    c@(Coord x y)  <- use coord
+    ad <- use direc
+    s  <- use scaff
+
+    case map (\rd -> S.member (relNeighbour ad rd c) s) [LEFT, FRONT, RIGHT] of
+
+        [l, True, r] -> do
+            ad <- use direc
+            when (l && r && (ad `elem` [NORTH, SOUTH])) (sumap += (x * y))
+            steps += 1
+            coord %= relNeighbour ad FRONT
+            return False
+        
+        [l, False, r] -> do
+            st <- use steps
+            when (st > 0) (mvmts <>= [FORWARD st])
+            case (l, r) of
+                (False, False) -> return True
+                (True,  False) -> turnRobot LEFT
+                (False,  True) -> turnRobot RIGHT
 
 
-forwardRobot :: [Movement] -> Scaffold -> Int -> Robot -> [Movement]
-forwardRobot ms s i (c, f)
-    | S.member c' s = forwardRobot ms s (i + 1) (c', f)
-    | otherwise     = turnRobot ((FORWARD i):ms) s (c, f)
-    where c' = relNeighbour f FRONT c
+turnRobot :: RelDirection -> State RobotState Bool
+turnRobot rd = do
+    steps .= 0
+    mvmts <>= [TURN rd]
+    direc  %= turn rd
+    return False
 
 
-makeData :: Data -> (Coord, Char) -> Data
-makeData d (c, '#') = over _1 (S.insert c) d
-makeData d (c, '^') = set  _2 (c, NORTH)   d
-makeData d (c, '>') = set  _2 (c, EAST )   d
-makeData d (c, 'v') = set  _2 (c, SOUTH)   d
-makeData d (c, '<') = set  _2 (c, WEST )   d
-makeData d  _       =                      d
-
-
-intersection :: Scaffold -> Coord -> Bool
-intersection s c = and $ map (flip S.member s . nextCoord c) allAbsDirections
+makeData :: (Coord, Char) -> Data -> Data
+makeData (c, '#') = over _1 (S.insert c)
+makeData (c, '^') = set  _2 (c, NORTH)
+makeData (c, '>') = set  _2 (c, EAST )
+makeData (c, 'v') = set  _2 (c, SOUTH)
+makeData (c, '<') = set  _2 (c, WEST )
+makeData  _       = id

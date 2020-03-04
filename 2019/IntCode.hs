@@ -7,22 +7,21 @@ module IntCode where
 import           Control.Lens (makeLenses, over, use, view, set, (%=), (+=), (.=))
 import           Control.Monad.Loops (iterateWhile)
 import           Control.Monad.State (execState, State, when, unless)
+import           Data.Char (chr, ord)
 import           Data.List (foldl')
 import           Data.List.Split (splitOn)
--- import           Data.Vector (Vector, (!), (//))
 import           Data.IntMap (IntMap, (!))
 import           Text.Printf (printf)
--- import qualified Data.Vector as V
 import qualified Data.IntMap    as M
 
-import Debug.Trace
+-- import Debug.Trace
 
 
 data Param = Value Int | Addr Int deriving (Show)
 data Command = ADD | MULTIPLY | INPUT | OUTPUT | JMPIFTRUE | JMPIFFALSE | LTHAN | EQUALS | CHRELBASE | EXIT deriving (Show)
 data Instr = Instr Command Param Param Param deriving (Show)
 data ICState = ICState
-    { _intCode :: IntMap Int
+    { _memory :: IntMap Int
     , _pointer :: Int
     , _relbase :: Int
     , _input   :: [Int]
@@ -40,6 +39,14 @@ loadCode fp = do
     return (ICState (M.fromList $ zip [0..] intcode) 0 0 [] [] True)
 
 
+runIntCodeASCII :: String -> ICState -> (String, ICState)
+runIntCodeASCII i ics = (map chr output, ics') where
+    i' = case i of
+        "" -> i
+        otherwise -> i ++ "\n"
+    (output, ics') = runIntCode (map ord i') ics
+
+
 runIntCode :: [Int] -> ICState -> ([Int], ICState)
 runIntCode i ics = (reverse $ view output endState, set output [] endState) where
     endState = execState (iterateWhile (== True) (decode >>= exec)) $ set input i ics
@@ -48,16 +55,16 @@ isRunning :: ICState -> Bool
 isRunning = view running
 
 writeMemory :: Int -> Int -> ICState -> ICState
-writeMemory addr value = over intCode (M.insert addr value)
+writeMemory addr value = over memory (M.insert addr value)
 
 readMemory :: Int -> ICState -> Int
-readMemory i = flip (!) i . view intCode
+readMemory i = flip (!) i . view memory
 
 
 decode :: (State ICState) Instr
 decode = do
     p  <- use pointer
-    ic <- use intCode
+    ic <- use memory
     rb <- use relbase
     let (m3:m2:m1:oc) = (printf "%05d" (ic ! p)) :: String
 
@@ -162,13 +169,13 @@ exec i = error ("Wrong instruction: " ++ show i)
 
 changeIC :: Int -> Int -> (State ICState) ()
 changeIC addr val =
-    intCode %= (\m -> M.insert addr val m)
+    memory %= (\m -> M.insert addr val m)
 
 
 
 getVal :: Param -> (State ICState) Int
 getVal p = do
-    ic <- use intCode
+    ic <- use memory
     case p of
         Value v -> return v
         Addr  a -> return $ M.findWithDefault 0 a ic
