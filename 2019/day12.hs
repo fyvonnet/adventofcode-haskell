@@ -23,19 +23,10 @@ main = do
 
     let moons = zipWith (\a b -> (a, b)) positions velocities
     let allUpdates = iterate updateMoons' moons
-    let finalUpdate = allUpdates !! 1000
 
-    print $ sum $ map totalEnergy finalUpdate
+    print $ sum $ map totalEnergy (allUpdates !! 1000)
 
-    --print $ fmap (!!0) $ map fst finalUpdate
-
-    --let fu = allUpdates !! 0
-    --print fu
-    let ((_, a), _) = findRepeat $ map (map (\(p, v) -> (toList p !! 0, toList v !! 0))) allUpdates
-    let ((_, b), _) = findRepeat $ map (map (\(p, v) -> (toList p !! 1, toList v !! 1))) allUpdates
-    let ((_, c), _) = findRepeat $ map (map (\(p, v) -> (toList p !! 2, toList v !! 2))) allUpdates
-    print ((a `div` 2) * (b `div` 2) * (c `div` 2))
-    --print $ map (map (\(p, v) -> (toList p !! 0, toList v !! 0))) allUpdates
+    print $ product $ map (\i -> (\n -> div n 2) $ snd $ fst $ findRepeat $ map (map (\(p, v) -> (toList p !! i, toList v !! i))) allUpdates) [0..2]
 
 
 totalEnergy :: (MoonCoord, MoonCoord) -> Int
@@ -44,11 +35,6 @@ totalEnergy (pos, vel) = (energy pos) * (energy vel)
 energy :: MoonCoord -> Int
 energy = sum . fmap abs
 
---totalEnergy :: ([MoonCoord], [MoonCoord]) -> Int
---totalEnergy (poss, vels) = ke + pe where
---    ke = sum $ map (sum . abs) toList poss
---    pe = sum $ map (sum . abs) toList vels
---
 updateMoons' :: [(MoonCoord, MoonCoord)] -> [(MoonCoord, MoonCoord)]
 updateMoons' moons = map (updateOneMoon moons) moons
 
@@ -57,15 +43,6 @@ updateOneMoon allMoons (pos, vel) = (pos', vel') where
     allPos = filter (/= pos) $ map fst allMoons
     vel' = vel + (F.fromFoldable' $ applyGravity (map toList allPos) (toList pos))
     pos' = pos + vel'
-
-updateMoons :: ([MoonCoord], [MoonCoord]) -> ([MoonCoord], [MoonCoord])
-updateMoons (poss, vels) = (poss', vels') where
-    vels' = zipWith (+) vels (getVelocities poss)
-    poss' = zipWith (+) poss vels'
-
---updateOneMoon :: [Moon] -> Moon -> Moon
---updateOneMoon all (pos, vel) = (pos', vel') where
---    others = delete moon all
 
 
 getVelocities :: [MoonCoord] -> [MoonCoord]
@@ -87,8 +64,6 @@ computeVel lst r = sum $ map (go r) lst where
         EQ ->  0
         GT -> -1
         
-
-
 
 parseLine :: RE -> String -> MoonCoord
 parseLine re str = x :. y  :. z :. F.Nil where
