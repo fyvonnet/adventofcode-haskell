@@ -1,6 +1,9 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 
 import           AOC.Coord
 import           AOC.Common (getTextMap)
+import           Control.Lens ((&), makeLenses, set, view, over)
 import           Data.Maybe
 import qualified Data.Map as Map
 
@@ -11,6 +14,7 @@ type CartMap    = Map.Map Coord CartState
 type ParseState = (TrackMap, CartMap)
 data RunState   = RS { _cm :: CartMap, _fc :: Maybe Coord, _lc :: Maybe Coord }
 
+makeLenses ''RunState
 
 
 main :: IO ()
@@ -24,20 +28,23 @@ main = do
 
 
 moveCart :: TrackMap -> RunState -> Coord -> RunState
-moveCart tm (RS cm fc _) c
-    | isNothing state   = (RS cm  fc  Nothing)   -- trying to move a previously-deleted cart
-    | Map.null cm'      = (RS cm' fc  (Just c')) -- only one cart left, returning its coordinates after the last move
-    | Map.member c' cm' = (RS cmd fc' Nothing)   -- collision between two carts, removing the second cart
-    | otherwise         = (RS cmi fc  Nothing)   -- cart moving: insert back in the map with new coords and updated state
+moveCart tm rs c
+    -- tried to move a previously-removed cart, state unchanged
+    | isNothing state   = rs
+    -- only one cart left, returning its coordinates after the last move
+    | Map.null cm'      = set lc (Just c') rs'
+    -- collision between two carts, removing the second cart
+    | Map.member c' cm' = rs'
+            & over fc (\fc -> if isNothing fc then Just c' else fc)
+            & over cm (Map.delete c')
+    -- cart moving: insert back in the map with new coords and updated state
+    | otherwise         = over cm (Map.insert c' state') rs'
     where
-        state  = Map.lookup c cm
-        cm'    = Map.delete c cm
-        c'     = absNeighbour (snd $ fromJust state) c
+        state  = Map.lookup c $ view cm rs
         state' = Map.findWithDefault id c' tm $ fromJust state
-        fc'    = if isNothing fc then Just c' else fc
-        cmd    = Map.delete c' cm'
-        cmi    = Map.insert c' state' cm'
-
+        rs'    = over cm (Map.delete c) rs
+        cm'    = view cm rs'
+        c'     = absNeighbour (snd $ fromJust state) c
 
 
 makeMaps :: ParseState -> (Coord, Char) -> ParseState
