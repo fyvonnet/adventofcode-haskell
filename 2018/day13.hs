@@ -28,10 +28,10 @@ main = do
 
 moveCart :: TrackMap -> RunState -> Coord -> RunState
 moveCart tm (RS cm fc _) c
-    | isNothing state   = (RS cm  fc  Nothing)
-    | Map.null cm'      = (RS cm' fc  (Just c'))
-    | Map.member c' cm' = (RS cmd fc' Nothing)
-    | otherwise         = (RS cmi fc  Nothing)
+    | isNothing state   = (RS cm  fc  Nothing)   -- trying to move a previously-deleted cart
+    | Map.null cm'      = (RS cm' fc  (Just c')) -- only one cart left, returning its coordinates after the last move
+    | Map.member c' cm' = (RS cmd fc' Nothing)   -- collision between two carts, removing the second cart
+    | otherwise         = (RS cmi fc  Nothing)   -- cart moving: insert back in the map with new coords and updated state
     where
         state  = Map.lookup c cm
         cm'    = Map.delete c cm
