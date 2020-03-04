@@ -12,7 +12,11 @@ type CartState  = (RelDirection, AbsDirection)
 type TrackMap   = Map.Map Coord (CartState -> CartState)
 type CartMap    = Map.Map Coord CartState
 type ParseState = (TrackMap, CartMap)
-data RunState   = RS { _cm :: CartMap, _fc :: Maybe Coord, _lc :: Maybe Coord }
+data RunState   = RS
+                    { _cm :: CartMap        -- state of carts, indexed by coordinated
+                    , _fc :: Maybe Coord    -- coordinates of first collision
+                    , _lc :: Maybe Coord    -- coordinates of last remaining cart
+                    }
 
 makeLenses ''RunState
 
@@ -20,15 +24,19 @@ makeLenses ''RunState
 main :: IO ()
 main = do
     (tm, cm) <- foldl makeMaps (Map.empty, Map.empty) <$> getTextMap <$> readFile "inputs/day13"
-    let result   = until (isJust . _lc) (\rs -> foldl (moveCart tm) rs (Map.keys $ _cm rs)) (RS cm Nothing Nothing)
-    let printAns = putStrLn . showCoord . fromJust
-    printAns $ _fc result
-    printAns $ _lc result
+    let (RS _ (Just fc) (Just lc)) = moveAllCarts tm (RS cm Nothing Nothing)
+    print fc
+    print lc
 
 
+moveAllCarts :: TrackMap -> RunState -> RunState
+moveAllCarts tm rs
+    | isJust $ view lc rs = rs
+    | otherwise = moveAllCarts tm $ foldl (moveOneCart tm) rs (Map.keys $ view cm rs)
 
-moveCart :: TrackMap -> RunState -> Coord -> RunState
-moveCart tm rs c
+
+moveOneCart :: TrackMap -> RunState -> Coord -> RunState
+moveOneCart tm rs c
     -- tried to move a previously-removed cart, state unchanged
     | isNothing state   = rs
     -- only one cart left, returning its coordinates after the last move
@@ -60,7 +68,6 @@ makeMaps ps (coord, c)
     where
         inserttm f = over _1 (Map.insert coord f        ) ps
         insertcm d = over _2 (Map.insert coord (LEFT, d)) ps
-
 
 
 -- +
