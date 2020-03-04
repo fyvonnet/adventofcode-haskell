@@ -2,11 +2,7 @@
 
 import           AOC.Common
 import           AOC.Coord
-import           Control.Lens (_1, _2, makeLenses, over, set, use)
-import           Control.Lens.Operators ((.=), (%=), (+=), (<>=))
-import           Control.Monad (when)
-import           Control.Monad.Loops (iterateUntil)
-import           Control.Monad.State (execState, State)
+import           Control.Lens ((&), _1, _2, makeLenses, over, set, view)
 import           Data.Char (chr, ord) 
 import           Data.Foldable (foldl')
 import           Data.Set (Set)
@@ -43,8 +39,8 @@ main = do
     ics <- loadCode "inputs/day17"
 
     let (output, _)        = runIntCode [] ics
-    let (scaffold, (c, d)) = foldl (flip makeData) (S.empty, undefined) $ getTextMap $ map chr output
-    let (RS _ _ ms _ _ s)  = execState (iterateUntil (== True) moveRobot) (RS d c mempty 0 scaffold 0)
+    let (scaffold, (c, d)) = foldl' (flip makeData) (S.empty, undefined) $ getTextMap $ map chr output
+    let (s, ms)            = moveRobot (RS d c mempty 0 scaffold 0)
 
     print s
     print ms
@@ -54,36 +50,24 @@ main = do
     print $ last output2
 
 
-moveRobot :: State RobotState Bool
-moveRobot = do
-    c@(Coord x y)  <- use coord
-    ad <- use direc
-    s  <- use scaff
-
+moveRobot :: RobotState -> (Int, [Movement])
+moveRobot rs@(RS ad c@(Coord x y) _ st s _) =
     case map (\rd -> S.member (relNeighbour ad rd c) s) [LEFT, FRONT, RIGHT] of
-
-        [l, True, r] -> do
-            ad <- use direc
-            when (l && r && (ad `elem` [NORTH, SOUTH])) (sumap += (x * y))
-            steps += 1
-            coord %= relNeighbour ad FRONT
-            return False
-        
-        [l, False, r] -> do
-            st <- use steps
-            when (st > 0) (mvmts <>= [FORWARD st])
-            case (l, r) of
-                (False, False) -> return True
-                (True,  False) -> turnRobot LEFT
-                (False,  True) -> turnRobot RIGHT
+        [False, False, False] -> (view sumap rs, reverse $ view mvmts rs')
+        [True,  False, False] -> moveRobot $ turnRobot LEFT  rs'
+        [False, False, True ] -> moveRobot $ turnRobot RIGHT rs'
+        [l,     True,  r    ] -> moveRobot $ rs
+            & over sumap (if (l && r && (ad `elem` [NORTH, SOUTH])) then (+ (x * y)) else id)
+            & over steps (+ 1)
+            & over coord (relNeighbour ad FRONT)
+    where rs' = if st > 0 then over mvmts ((:) (FORWARD st)) rs else rs
 
 
-turnRobot :: RelDirection -> State RobotState Bool
-turnRobot rd = do
-    steps .= 0
-    mvmts <>= [TURN rd]
-    direc  %= turn rd
-    return False
+turnRobot :: RelDirection -> RobotState -> RobotState
+turnRobot rd rs = rs
+    & set steps 0
+    & over mvmts ((:) (TURN rd))
+    & over direc (turn rd)
 
 
 makeData :: (Coord, Char) -> Data -> Data
