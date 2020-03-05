@@ -23,12 +23,12 @@ instance Show Movement where
 
 
 data RobotState = RS
-    { _direc :: AbsDirection
+    { _mvmts :: [Movement]
+    , _sumap :: Int
+    , _direc :: AbsDirection
     , _coord :: Coord
-    , _mvmts :: [Movement]
     , _steps :: Int
     , _scaff :: Scaffold
-    , _sumap :: Int
     }
    
 makeLenses ''RobotState
@@ -40,27 +40,27 @@ main = do
 
     let (output, _)        = runIntCode [] ics
     let (scaffold, (c, d)) = foldl' (flip makeData) (S.empty, undefined) $ getTextMap $ map chr output
-    let (s, ms)            = moveRobot (RS d c mempty 0 scaffold 0)
+    let (RS ms s _ _ _ _)  = moveRobot (RS [] 0 d c 0 scaffold)
 
-    print s
-    print ms
+    print $ div s 2
+    print $ reverse $ init ms
 
     prog <- map ord <$> readFile "day17-prog"
     let (output2, _) = runIntCode prog $ writeMemory 0 2 ics
     print $ last output2
 
 
-moveRobot :: RobotState -> (Int, [Movement])
-moveRobot rs@(RS ad c@(Coord x y) _ st s _) =
-    case map (\rd -> S.member (relNeighbour ad rd c) s) [LEFT, FRONT, RIGHT] of
-        [False, False, False] -> (view sumap rs, reverse $ view mvmts rs')
+moveRobot :: RobotState -> RobotState
+moveRobot rs@(RS _ sm ad c@(Coord x y) st sc) =
+    case map (\rd -> S.member (relNeighbour ad rd c) sc) [LEFT, FRONT, RIGHT] of
+        [False, False, False] -> rs'
         [True,  False, False] -> moveRobot $ turnRobot LEFT  rs'
         [False, False, True ] -> moveRobot $ turnRobot RIGHT rs'
         [l,     True,  r    ] -> moveRobot $ rs
-            & over sumap (if (l && r && (ad `elem` [NORTH, SOUTH])) then (+ (x * y)) else id)
+            & over sumap (if (l && r) then (+ (x * y)) else id)
             & over steps (+ 1)
             & over coord (relNeighbour ad FRONT)
-    where rs' = if st > 0 then over mvmts ((:) (FORWARD st)) rs else rs
+    where rs' = over mvmts ((:) (FORWARD st)) rs
 
 
 turnRobot :: RelDirection -> RobotState -> RobotState
