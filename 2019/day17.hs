@@ -2,7 +2,7 @@
 
 import           AOC.Common
 import           AOC.Coord
-import           Control.Lens ((&), _1, _2, makeLenses, over, set, view)
+import           Control.Lens ((.~), (<>~), (%~), (+~), (&), _1, _2, makeLenses)
 import           Data.Char (chr, ord) 
 import           Data.Foldable (foldl')
 import           Data.Set (Set)
@@ -43,7 +43,8 @@ main = do
     let (RS ms s _ _ _ _)  = moveRobot (RS [] 0 d c 0 scaffold)
 
     print $ div s 2
-    print $ reverse $ init ms
+    print $ tail ms
+    
 
     prog <- map ord <$> readFile "day17-prog"
     let (output2, _) = runIntCode prog $ writeMemory 0 2 ics
@@ -57,23 +58,23 @@ moveRobot rs@(RS _ sm ad c@(Coord x y) st sc) =
         [True,  False, False] -> moveRobot $ turnRobot LEFT  rs'
         [False, False, True ] -> moveRobot $ turnRobot RIGHT rs'
         [l,     True,  r    ] -> moveRobot $ rs
-            & over sumap (if (l && r) then (+ (x * y)) else id)
-            & over steps (+ 1)
-            & over coord (relNeighbour ad FRONT)
-    where rs' = over mvmts ((:) (FORWARD st)) rs
+            & sumap +~ (if (l && r) then (x * y) else 0)
+            & steps +~ 1
+            & coord %~ relNeighbour ad FRONT
+    where rs' = rs & mvmts <>~ [FORWARD st]
 
 
 turnRobot :: RelDirection -> RobotState -> RobotState
 turnRobot rd rs = rs
-    & set steps 0
-    & over mvmts ((:) (TURN rd))
-    & over direc (turn rd)
+    & steps  .~ 0
+    & direc  %~  turn rd
+    & mvmts <>~ [TURN rd]
 
 
 makeData :: (Coord, Char) -> Data -> Data
-makeData (c, '#') = over _1 (S.insert c)
-makeData (c, '^') = set  _2 (c, NORTH)
-makeData (c, '>') = set  _2 (c, EAST )
-makeData (c, 'v') = set  _2 (c, SOUTH)
-makeData (c, '<') = set  _2 (c, WEST )
+makeData (c, '#') = _1 %~ S.insert c
+makeData (c, '^') = _2 .~ (c, NORTH)
+makeData (c, '>') = _2 .~ (c, EAST )
+makeData (c, 'v') = _2 .~ (c, SOUTH)
+makeData (c, '<') = _2 .~ (c, WEST )
 makeData  _       = id
