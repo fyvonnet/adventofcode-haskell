@@ -3,7 +3,7 @@
 
 import           AOC.Coord
 import           AOC.Common (getTextMap)
-import           Control.Lens ((&), _1, _2, makeLenses, set, view, over)
+import           Control.Lens ((%~), (.~), (^.), (&), _1, _2, makeLenses)
 import           Data.Maybe
 import qualified Data.Map as Map
 
@@ -31,8 +31,8 @@ main = do
 
 moveAllCarts :: TrackMap -> RunState -> RunState
 moveAllCarts tm rs
-    | isJust $ view lc rs = rs
-    | otherwise = moveAllCarts tm $ foldl (moveOneCart tm) rs (Map.keys $ view cm rs)
+    | isJust (rs ^. lc) = rs
+    | otherwise = moveAllCarts tm $ foldl (moveOneCart tm) rs (Map.keys $ (rs ^. cm))
 
 
 moveOneCart :: TrackMap -> RunState -> Coord -> RunState
@@ -40,18 +40,18 @@ moveOneCart tm rs c
     -- tried to move a previously-removed cart, state unchanged
     | isNothing state   = rs
     -- only one cart left, returning its coordinates after the last move
-    | Map.null cm'      = set lc (Just c') rs'
+    | Map.null cm'      = rs' & lc .~ (Just c')
     -- collision between two carts, removing the second cart
     | Map.member c' cm' = rs'
-            & over fc (\fc -> if isNothing fc then Just c' else fc)
-            & over cm (Map.delete c')
+            & fc %~ (\fc -> if isNothing fc then Just c' else fc)
+            & cm %~ (Map.delete c')
     -- cart moving: insert back in the map with new coords and updated state
-    | otherwise         = over cm (Map.insert c' state') rs'
+    | otherwise         = rs' & cm %~ (Map.insert c' state')
     where
-        state  = Map.lookup c $ view cm rs
+        state  = Map.lookup c (rs ^. cm)
         state' = Map.findWithDefault id c' tm $ fromJust state
-        rs'    = over cm (Map.delete c) rs
-        cm'    = view cm rs'
+        rs'    = rs & cm %~ (Map.delete c)
+        cm'    = rs' ^. cm
         c'     = absNeighbour (snd $ fromJust state) c
 
 
@@ -66,8 +66,8 @@ makeMaps ps (coord, c)
     | c == 'v'  = insertcm SOUTH
     | otherwise = ps
     where
-        inserttm f = over _1 (Map.insert coord f        ) ps
-        insertcm d = over _2 (Map.insert coord (LEFT, d)) ps
+        inserttm f = ps & _1 %~ (Map.insert coord f        )
+        insertcm d = ps & _2 %~ (Map.insert coord (LEFT, d))
 
 
 -- +
