@@ -10,14 +10,16 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 
+data Square = WALL | PASSAGE [AbsDirection] deriving (Show, Eq)
+type Area   = Map Coord Square
+
 data RobotState = RobotState
     { _coord  :: Coord
     , _trail  :: [AbsDirection]
     , _ics    :: ICState
-    , _walls  :: Set Coord
     , _nsteps :: Int
     , _oxy    :: Coord
-    , _avail  :: Map Coord [AbsDirection]
+    , _area   :: Area
     }
 
 makeLenses ''RobotState
@@ -31,14 +33,12 @@ main = do
         _coord  = (Coord 0 0) ,
         _trail  = [] ,
         _ics    = ics ,
-        _walls  = Set.empty ,
         _nsteps = undefined ,
         _oxy    = undefined ,
-        _avail  = Map.singleton (Coord 0 0) allAbsDirections }
+        _area   = Map.singleton (Coord 0 0) (PASSAGE allAbsDirections) }
 
     print $ rs^.nsteps
-
-    print $ expand (rs^.walls) [(1, rs^.oxy)] 0
+    print $ expand (Set.fromList $ Map.keys $ Map.filter (== WALL) $ rs^.area) [(1, rs^.oxy)] 0
 
 
 expand :: Set Coord -> [(Int, Coord)] -> Int -> Int
@@ -61,9 +61,8 @@ explore rs =
             & ics   %~ snd . runIntCode (dir2cmd turnBack)
             & trail %~ tail
 
-        (_, _, [0]) -> explore $ rs
-            & walls %~ Set.insert (absNeighbour (head av) (rs^.coord))
-            & avail %~ Map.insert (rs^.coord) (tail av)
+        (_, _, [0]) -> explore $ rs'
+            & area %~ Map.insert (absNeighbour (head av) (rs^.coord)) WALL
 
         (_, _, [1]) -> explore   rs_moved
         
@@ -73,13 +72,13 @@ explore rs =
 
     where
         (output, ics') = runIntCode (dir2cmd $ head av) (rs^.ics)
-        av       = Map.findWithDefault defAvail (rs^.coord) (rs^.avail)
-        defAvail = filter (\d -> d /= turnBack) allAbsDirections
+        (PASSAGE av)   = Map.findWithDefault defAvail (rs^.coord) (rs^.area)
+        defAvail = PASSAGE $ filter (\d -> d /= turnBack) allAbsDirections
         turnBack = turn BACK $ head (rs^.trail)
-        rs_moved = rs 
+        rs'      = rs & area %~ Map.insert (rs^.coord) (PASSAGE $ tail av)
+        rs_moved = rs' 
             & ics   .~ ics'
             & coord %~ absNeighbour (head av)
-            & avail %~ Map.insert (rs^.coord) (tail av)
             & trail %~ (:) (head av)
 
 
