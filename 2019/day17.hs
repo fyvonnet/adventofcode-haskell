@@ -2,7 +2,7 @@
 
 import           AOC.Common
 import           AOC.Coord
-import           Control.Lens ((.~), (<>~), (%~), (+~), (&), _1, _2, makeLenses)
+import           Control.Lens ((^.), (.~), (<>~), (%~), (+~), (&), _1, _2, makeLenses)
 import           Data.Char (chr, ord) 
 import           Data.Foldable (foldl')
 import           Data.Set (Set)
@@ -32,6 +32,7 @@ data RobotState = RS
     }
    
 makeLenses ''RobotState
+makeLenses ''Coord
 
 
 main :: IO ()
@@ -52,16 +53,19 @@ main = do
 
 
 moveRobot :: RobotState -> RobotState
-moveRobot rs@(RS _ sm ad c@(Coord x y) st sc) =
-    case map (\rd -> S.member (relNeighbour ad rd c) sc) [LEFT, FRONT, RIGHT] of
+moveRobot rs =
+    case map (\rd -> S.member (relNeighbour ad rd crd) (rs^.scaff)) [LEFT, FRONT, RIGHT] of
         [False, False, False] -> rs'
         [True,  False, False] -> moveRobot $ turnRobot LEFT  rs'
         [False, False, True ] -> moveRobot $ turnRobot RIGHT rs'
         [l,     True,  r    ] -> moveRobot $ rs
-            & sumap +~ (if (l && r) then (x * y) else 0)
+            & sumap +~ (if (l && r) then (crd^.x * crd^.y) else 0)
             & steps +~ 1
             & coord %~ relNeighbour ad FRONT
-    where rs' = rs & mvmts <>~ [FORWARD st]
+    where
+        rs' = rs & mvmts <>~ [FORWARD (rs^.steps)]
+        crd = rs^.coord
+        ad  = rs^.direc
 
 
 turnRobot :: RelDirection -> RobotState -> RobotState
